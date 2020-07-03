@@ -8,7 +8,7 @@ namespace Maze.Engine
     [Flags]
     public enum Direction
     {
-        None = -1,
+        None = 0,
         Up = 1 << 0,
         Right = 1 << 1,
         Down = 1 << 2,
@@ -74,8 +74,11 @@ namespace Maze.Engine
 
         public void Draw()
         {
-            foreach (var side in _sides)
-                side.Draw();
+            var intersection = Maze.Game.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+
+            if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
+                foreach (var side in _sides)
+                    side.Draw();
         }
     }
 }

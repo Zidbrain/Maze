@@ -15,6 +15,7 @@ namespace Maze
         public Shader Shader { get; private set; }
 
         public Queue<IDrawable> DrawableQueue { get; private set; }
+        public BoundingFrustum Frustum { get; private set; }
 
         public SpriteFont Font { get; private set; }
 
@@ -84,7 +85,8 @@ namespace Maze
             Input.Update();
 
             Shader.Matrix = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
-                    Matrix.CreatePerspectiveFieldOfView(ToRadians(45f), ScreenSize.X / ScreenSize.Y, 0.01f, 100f);
+                    Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 100f);
+            Frustum = new BoundingFrustum(Shader.Matrix);
         }
 
 
@@ -115,13 +117,13 @@ namespace Maze
             base.Draw(gameTime);
         }
 
-        public void DrawVertexes(VertexBuffer buffer, Matrix transform)
+        public void DrawVertexes(VertexBuffer buffer, Matrix transform, int start = 0, int primitiveCount = 2)
         {
             Shader.Transform = transform;
 
             GraphicsDevice.SetVertexBuffer(buffer);
             Shader.Apply();
-            GraphicsDevice.DrawPrimitives(PrimitiveType.TriangleList, 0, 2);
+            GraphicsDevice.DrawPrimitives(PrimitiveType.TriangleList, start, primitiveCount);
         }
 
         public static Maze Game { get; } = new Maze();

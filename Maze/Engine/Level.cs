@@ -9,7 +9,7 @@ namespace Maze.Engine
 {
     public class Level : IDrawable
     {
-        private readonly Tile[] _tiles;
+        private readonly Tile[,] _tiles;
         private Vector2 _yawpitch;
         private readonly BSPTree _tree;
 
@@ -76,7 +76,8 @@ namespace Maze.Engine
                 var polygones = _tree.Collides(new BoundingSphere(CameraPosition, mult + Polygon.Range));
 
                 var skip = -1;
-                for (var i = 0; i < polygones.Count;i++)
+                var times = 0;
+                for (var i = 0; i < polygones.Count && times < 3; i++)
                 {
                     if (i == skip)
                         continue;
@@ -94,13 +95,11 @@ namespace Maze.Engine
                         {
                             var endPoint = CameraPosition + vector + Extensions.SignedDistance(CameraPosition + vector, rangePoint, polygon.Plane.Normal) * polygon.Plane.Normal;
 
-                            if (vector == endPoint - CameraPosition)
-                                break;
-
                             vector = endPoint - CameraPosition;
 
                             skip = i;
                             i = -1;
+                            times++;
                         }
                     }
                 }
@@ -109,21 +108,87 @@ namespace Maze.Engine
             }
         }
 
+        public Tile[,] GenerateMaze(int size)
+        {
+            var cells = new (bool visited, Direction removedWall)[size, size];
+
+            (int x, int y)? CheckForFree(int x, int y, Direction direction)
+            {
+                switch (direction)
+                {
+                    case Direction.Right:
+                        if (x + 1 < size && !cells[x + 1, y].visited)
+                            return (x + 1, y);
+                        break;
+                    case Direction.Left:
+                        if (x - 1 >= 0 && !cells[x - 1, y].visited)
+                            return (x - 1, y);
+                        break;
+                    case Direction.Up:
+                        if (y + 1 < size && !cells[x, y + 1].visited)
+                            return (x, y + 1);
+                        break;
+                    case Direction.Down:
+                        if (y - 1 >= 0 && !cells[x, y - 1].visited)
+                            return (x, y - 1);
+                        break;
+                }
+                return null;
+            }
+
+            var stack = new Stack<(int x, int y, bool visited)>();
+            stack.Push((0, 0, true));
+
+            while (stack.Count != 0)
+            {
+                var (x, y, visited) = stack.Pop();
+
+                var directions = new int[] { 0, 1, 2, 3 };
+                directions.Shuffle();
+
+                foreach (var dirInt in directions)
+                {
+                    var direction = (Direction)(1 << dirInt);
+
+                    var free = CheckForFree(x, y, direction);
+                    if (free != null)
+                    {
+                        cells[free.Value.x, free.Value.y] = (true, cells[free.Value.x, free.Value.y].removedWall | (Direction)(1 << ((dirInt + 2) % 4)));
+                        cells[x, y] = (visited, direction | cells[x, y].removedWall);
+
+                        stack.Push((x, y, true));
+                        stack.Push((free.Value.x, free.Value.y, true));
+                        break;
+                    }
+                }
+            }
+
+            var tileGrid = new Tile[size, size];
+            for (int x = 0; x < size; x++)
+                for (int y = 0; y < size; y++)
+                {
+                    Direction direction;
+                    if (x == 0 && y == 0)
+                        direction = Direction.None;
+                    else if (y == 0)
+                        direction = Direction.Left;
+                    else if (x == 0)
+                        direction = Direction.Down;
+                    else direction = Direction.Left | Direction.Down;
+
+                    direction |= cells[x, y].removedWall;
+
+                    tileGrid[x, y] = new Tile(1f, direction) { Position = new Vector3(x, 0f, -y) };
+                }
+
+            return tileGrid;
+        }
+
         public Level()
         {
-            _tiles = new Tile[]
-            {
-                 new Tile(1f, Direction.Down),
-                 new Tile(1f, Direction.Up | Direction.Down | Direction.Right),
-                 new Tile(1f, Direction.Up),
-                 new Tile(1f, Direction.Left)
-            };
+            _tiles = GenerateMaze(10);
 
-            for (var i = 0; i < _tiles.Length - 1; i++)
-                _tiles[i].Position = new Vector3(0f, 0f, -1f + 1f * i);
-            _tiles[3].Position = new Vector3(1f, 0f, 0f);
-
-            _tree = new BSPTree(_tiles);
+            _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
 
             CameraPosition = new Vector3(0f, -0f, 0f);
         }

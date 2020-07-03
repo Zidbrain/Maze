@@ -17,6 +17,8 @@ namespace Maze
 
     public static class Extensions
     {
+        private static Random s_random = new Random();
+
         public static Vector3 XZ(this Vector3 value) =>
             new Vector3(value.X, 0f, value.Z);
 
@@ -57,6 +59,23 @@ namespace Maze
                 new Vector4(Vector3.Cross(b - a, c - a), 0),
                 new Vector4(0, 0, 0, 1))));
             return newCoord.X >= 0 && newCoord.X <= 1 && newCoord.Y >= 0 && newCoord.Y <= 1 && newCoord.X + newCoord.Y <= 1;
+        }
+
+        public static void Shuffle<T>(this T[] array)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                var next = s_random.Next(0, array.Length);
+                var temp = array[next];
+                array[next] = array[i];
+                array[i] = temp;
+            }
+        }
+
+        public static IEnumerable<T> ToIEnumerable<T>(this Array target)
+        {
+            foreach (var item in target)
+                yield return (T)item;
         }
     }
 }

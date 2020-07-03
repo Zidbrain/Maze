@@ -59,7 +59,6 @@ namespace Maze.Engine
         public void Draw()
         {
             Maze.Game.Shader.Texture = Texture;
-
             Maze.Game.DrawVertexes(_buffer, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
         }
     }
