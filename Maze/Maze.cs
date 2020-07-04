@@ -20,9 +20,12 @@ namespace Maze
         public SpriteFont Font { get; private set; }
 
         private SpriteBatch _spriteBatch;
-        private RenderTarget2D _renderTarget;
+
+        private VertexBuffer _vertexBuffer;
 
         public Level Level { get; private set; }
+
+        public RenderTargets RenderTargets { get; private set; }
 
         public Vector2 ScreenSize =>
             new Vector2(Window.ClientBounds.Width, Window.ClientBounds.Height);
@@ -57,7 +60,17 @@ namespace Maze
 
             Level = new Level();
 
-            _renderTarget = new RenderTarget2D(GraphicsDevice, 1920, 1080, true, SurfaceFormat.Color, DepthFormat.Depth24Stencil8);
+            RenderTargets = new RenderTargets();
+            _vertexBuffer = new VertexBuffer(GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
+            _vertexBuffer.SetData(new[]
+            {
+                new VertexPositionTexture(new Vector3(-1,1,1), Vector2.Zero),
+                new VertexPositionTexture(new Vector3(-1,-1,1), new Vector2(0f, 1f)),
+                new VertexPositionTexture(new Vector3(1,-1, 1), Vector2.One),
+                new VertexPositionTexture(new Vector3(1,-1, 1), Vector2.One),
+                new VertexPositionTexture(new Vector3(-1,1,1), Vector2.Zero),
+                new VertexPositionTexture(new Vector3(1,1,1), new Vector2(1f,0f))
+            });
         }
 
         protected override void Update(GameTime gameTime)
@@ -68,11 +81,11 @@ namespace Maze
             GraphicsDevice.RasterizerState = new RasterizerState()
             {
                 CullMode = CullMode.None,
-                MultiSampleAntiAlias = false,
+                MultiSampleAntiAlias = true,
             };
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
-            GraphicsDevice.PresentationParameters.MultiSampleCount = 4;
+            GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
+            GraphicsDevice.PresentationParameters.MultiSampleCount = 0;
 
             if (Input.Pressed(Keys.Escape))
                 Exit();
@@ -84,15 +97,15 @@ namespace Maze
 
             Input.Update();
 
-            Shader.Matrix = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
-                    Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 100f);
-            Frustum = new BoundingFrustum(Shader.Matrix);
+            Shader.StandartState.Matrix = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
+                    Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 7.3f);
+            Frustum = new BoundingFrustum(Shader.StandartState.Matrix);
         }
 
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.SetRenderTarget(_renderTarget);
+            GraphicsDevice.SetRenderTargets(RenderTargets);
 
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
@@ -101,8 +114,12 @@ namespace Maze
             while (DrawableQueue.Count > 0)
                 DrawableQueue.Dequeue().Draw();
 
+            GraphicsDevice.SetRenderTarget(RenderTargets.United);
+
+            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: new RasterizeShaderState(RenderTargets));
+
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            var text = $"Position X:{Level.CameraPosition.X} Y:{Level.CameraPosition.Y} Z:{Level.CameraPosition.Z}\n" + 
+            var text = $"Position X:{Level.CameraPosition.X} Y:{Level.CameraPosition.Y} Z:{Level.CameraPosition.Z}\n" +
             $"Camera Direction X:{Level.CameraDirection.X} Y:{Level.CameraDirection.Y} Z:{Level.CameraDirection.Z}";
             _spriteBatch.DrawString(Font, text, new Vector2(0f, 1080) - new Vector2(0f, Font.MeasureString(text).Y), Color.White);
             _spriteBatch.DrawString(Font, (1000f / gameTime.ElapsedGameTime.TotalMilliseconds).ToString(), Vector2.Zero, Color.White);
@@ -111,15 +128,28 @@ namespace Maze
             GraphicsDevice.SetRenderTarget(null);
 
             _spriteBatch.Begin();
-            _spriteBatch.Draw(_renderTarget, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), Color.White);
+            _spriteBatch.Draw(RenderTargets.United, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), Color.White);
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
 
-        public void DrawVertexes(VertexBuffer buffer, Matrix transform, int start = 0, int primitiveCount = 2)
+        public void DrawVertexes(VertexBuffer buffer, in Matrix transform, int start = 0, int primitiveCount = 2, ShaderState shaderState = null)
         {
-            Shader.Transform = transform;
+            if (shaderState is null)
+            {
+                Shader.StandartState.Transform = transform;
+                Shader.State = Shader.StandartState;
+            }
+            else
+            {
+                if (shaderState is StandartShaderState standartState)
+                {
+                    standartState.Matrix = Shader.StandartState.Matrix;
+                    standartState.Transform = transform;
+                }
+                Shader.State = shaderState;
+            }
 
             GraphicsDevice.SetVertexBuffer(buffer);
             Shader.Apply();

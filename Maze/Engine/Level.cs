@@ -7,11 +7,13 @@ using System.Collections.Generic;
 
 namespace Maze.Engine
 {
-    public class Level : IDrawable
+    public class Level : IDrawable, IDisposable
     {
-        private readonly Tile[,] _tiles;
+        private Tile[,] _tiles;
+        private Tile _exit;
         private Vector2 _yawpitch;
         private readonly BSPTree _tree;
+        private BoundingBox _box;
 
         public Vector3 CameraDirection { get; private set; }
         public Vector3 CameraPosition { get; private set; }
@@ -36,6 +38,9 @@ namespace Maze.Engine
                 Mouse.SetPosition(Maze.Game.Window.ClientBounds.Width / 2, Maze.Game.Window.ClientBounds.Height / 2);
             }
         }
+
+        private bool IsOutOfBounds() =>
+            _box.Contains(CameraPosition) != ContainmentType.Contains;
 
         private void UpdateCameraPosition(GameTime gameTime)
         {
@@ -108,7 +113,7 @@ namespace Maze.Engine
             }
         }
 
-        public Tile[,] GenerateMaze(int size)
+        public void GenerateMaze(int size)
         {
             var cells = new (bool visited, Direction removedWall)[size, size];
 
@@ -163,7 +168,32 @@ namespace Maze.Engine
                 }
             }
 
-            var tileGrid = new Tile[size, size];
+            var random = new Random();
+            var side = random.Next(0, 4);
+            var index = random.Next(0, size);
+            var exitIndex = (x: 0, y: 0);
+            switch (side)
+            {
+                case 0:
+                    exitIndex = (index, size - 1);
+                    break;
+                case 1:
+                    exitIndex = (size - 1, index);
+                    break;
+                case 2:
+                    exitIndex = (index, 0);
+                    break;
+                case 3:
+                    exitIndex = (0, index);
+                    break;
+            }
+            cells[exitIndex.x, exitIndex.y].removedWall |= (Direction)(1 << side);
+            _exit = new Tile(1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
+            {
+                Position = new Vector3(exitIndex.x, 0f, -exitIndex.y)
+            };
+
+            _tiles = new Tile[size, size];
             for (int x = 0; x < size; x++)
                 for (int y = 0; y < size; y++)
                 {
@@ -178,15 +208,15 @@ namespace Maze.Engine
 
                     direction |= cells[x, y].removedWall;
 
-                    tileGrid[x, y] = new Tile(1f, direction) { Position = new Vector3(x, 0f, -y) };
+                    _tiles[x, y] = new Tile(1f, direction) { Position = new Vector3(x, 0f, -y) };
                 }
 
-            return tileGrid;
+            _box = new BoundingBox(new Vector3(0f, 0f, -size) - new Vector3(0.5f), new Vector3(size, 0f, 0f) + new Vector3(0.5f));
         }
 
         public Level()
         {
-            _tiles = GenerateMaze(10);
+            GenerateMaze(10);
 
             _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
 
@@ -195,14 +225,35 @@ namespace Maze.Engine
 
         public void Draw()
         {
+            var state = new FogShaderState()
+            {
+                CameraPlane = new Plane(CameraPosition, CameraDirection),
+                FogStart = 2.5f,
+                FogEnd = 5f,
+                FogColor = Color.CornflowerBlue,
+            };
             foreach (var tile in _tiles)
+            {
+                tile.ShaderState = state;
                 tile.Draw();
+            }
+
+            Maze.Game.Shader.StandartState.OnlyColor = true;
+            _exit.Draw();
+            Maze.Game.Shader.StandartState.OnlyColor = false;
         }
 
         public void Update(GameTime gameTime)
         {
             UpdateCameraDirection();
             UpdateCameraPosition(gameTime);
+        }
+
+        public void Dispose()
+        {
+            foreach (var tile in _tiles)
+                tile.Dispose();
+            _exit.Dispose();
         }
     }
 }

@@ -15,7 +15,7 @@ namespace Maze.Engine
         Left = 1 << 3
     }
 
-    public class Tile : IDrawable, ICollidable
+    public class Tile : IDrawable, ICollidable, IDisposable
     {
         private readonly List<Square> _sides;
         private Vector3 _position;
@@ -34,6 +34,18 @@ namespace Maze.Engine
             }
         }
 
+        private Color _color;
+        public Color Color
+        {
+            get => _color;
+            set
+            {
+                _color = value;
+                foreach (var side in _sides)
+                    side.Color = _color;
+            }
+        }
+
         public IEnumerable<Polygon> Polygones
         {
             get
@@ -45,17 +57,29 @@ namespace Maze.Engine
             }
         }
 
-        public Tile(float size, Direction excludedDirections)
+        private ShaderState _shaderState;
+        public ShaderState ShaderState
         {
-            var wall = Maze.Game.Content.Load<Texture2D>("Wall");
-            var floor = Maze.Game.Content.Load<Texture2D>("Floor");
-            var ceiling = Maze.Game.Content.Load<Texture2D>("Ceiling");
+            get => _shaderState;
+            set
+            {
+                _shaderState = value;
+                foreach (var side in _sides)
+                    side.ShaderState = value;
+            }
+        }
 
-            _sides = new List<Square>()
+        public Tile(float size, Direction excludedDirections, bool hasCeiling = true)
+        {
+            var wall = Maze.Game.Content.Load<Texture2D>("Textures/Wall");
+            var floor = Maze.Game.Content.Load<Texture2D>("Textures/Floor");
+            var ceiling = Maze.Game.Content.Load<Texture2D>("Textures/Ceiling");
+
+            _sides = hasCeiling ? new List<Square>()
             {
                 new Square(Matrix.Identity, floor) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size) },
                 new Square(Matrix.Identity, ceiling) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size) },
-            };
+            } : new List<Square>();
 
             var add = new[]
             {
@@ -79,6 +103,12 @@ namespace Maze.Engine
             if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
                 foreach (var side in _sides)
                     side.Draw();
+        }
+
+        public void Dispose()
+        {
+            foreach (var side in _sides)
+                side.Dispose();
         }
     }
 }

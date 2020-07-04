@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using Maze.Engine;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Maze
 {
@@ -17,7 +18,7 @@ namespace Maze
 
     public static class Extensions
     {
-        private static Random s_random = new Random();
+        private static readonly Random s_random = new Random();
 
         public static Vector3 XZ(this Vector3 value) =>
             new Vector3(value.X, 0f, value.Z);
@@ -63,7 +64,7 @@ namespace Maze
 
         public static void Shuffle<T>(this T[] array)
         {
-            for (int i = 0; i < array.Length; i++)
+            for (var i = 0; i < array.Length; i++)
             {
                 var next = s_random.Next(0, array.Length);
                 var temp = array[next];
@@ -77,5 +78,11 @@ namespace Maze
             foreach (var item in target)
                 yield return (T)item;
         }
+
+        public static void SetRenderTargets(this GraphicsDevice graphicsDevice, RenderTargets renderTargets) =>
+            graphicsDevice.SetRenderTargets(renderTargets.Bindings);
+
+        public static Vector4 ToVector4(this Plane plane) =>
+            new Vector4(plane.Normal, plane.D);
     }
 }

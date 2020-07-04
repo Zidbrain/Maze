@@ -115,8 +115,10 @@ namespace Maze.Engine
                 {
                     var list = new List<Polygon>();
                     foreach (var polygon in node.Polygones)
+                    {
                         if (Extensions.Distance(sphere.Center, polygon.Plane) <= sphere.Radius)
                             list.Add(polygon);
+                    }
 
                     return list;
                 }
