@@ -20,6 +20,23 @@ namespace Maze
     {
         private static readonly Random s_random = new Random();
 
+        private static Texture2D s_sample;
+        public static Texture2D Sample => s_sample ??= CreateSample(Color.White, Vector2.One);
+
+        public static Texture2D CreateSample(in Color color, in Vector2 size)
+        {
+            var ret = new Texture2D(Maze.Game.GraphicsDevice, (int)size.X, (int)size.Y);
+
+            var surface = (int)size.X * (int)size.Y;
+            var data = new Color[surface];
+
+            for (int i = 0; i < surface; i++)
+                data[i] = color;
+            ret.SetData(data);
+
+            return ret;
+        }
+
         public static Vector3 XZ(this Vector3 value) =>
             new Vector3(value.X, 0f, value.Z);
 

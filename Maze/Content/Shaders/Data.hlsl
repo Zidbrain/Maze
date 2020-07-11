@@ -16,7 +16,7 @@
 struct Vertex
 {
     float4 Position : SV_Position;
-    float2 TextureCoordinate : TEXCOORD;
+    float2 TextureCoordinate : TEXCOORD0;
     float3 Normal : NORMAL;
 };
 

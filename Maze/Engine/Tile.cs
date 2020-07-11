@@ -69,6 +69,8 @@ namespace Maze.Engine
             }
         }
 
+        public Direction ExcludedDirections { get; }
+
         public Tile(float size, Direction excludedDirections, bool hasCeiling = true)
         {
             var wall = Maze.Game.Content.Load<Texture2D>("Textures/Wall");
@@ -92,6 +94,8 @@ namespace Maze.Engine
             for (var i = 0; i < 4; i++)
                 if (!excludedDirections.HasFlag((Direction)(1 << i)))
                     _sides.Add(add[i]);
+
+            ExcludedDirections = excludedDirections;
 
             Size = size;
         }

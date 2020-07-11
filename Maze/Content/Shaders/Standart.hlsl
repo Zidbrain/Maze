@@ -46,7 +46,7 @@ RasterizePixel RasterizeVS(float4 position : SV_Position, float2 textureCoordina
     return ret;
 }
 
-float4 RasterizePS(in RasterizePixel input) : COLOR
+float4 RasterizePS(in RasterizePixel input) : SV_Target
 {
     return tex2D(textureSampler, input.TextureCoordinate);
 }

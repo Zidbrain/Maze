@@ -221,6 +221,8 @@ namespace Maze.Engine
             _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
 
             CameraPosition = new Vector3(0f, -0f, 0f);
+
+            _hookedTime = -1000;
         }
 
         public void Draw()
@@ -243,10 +245,116 @@ namespace Maze.Engine
             Maze.Game.Shader.StandartState.OnlyColor = false;
         }
 
+        public bool TraverseAutomatically { get; set; } = true;
+
+        private (int x, int y)? GetTile(Vector2 position)
+        {
+            var x = position.X + 0.5f;
+            if (x >= 0 && x < _tiles.GetLength(0) + 0.5f)
+            {
+                var y = -(position.Y - 0.5f);
+                if (y >= 0 && y < _tiles.GetLength(1) - 0.5f)
+                    return ((int)x, (int)y);
+            }
+            return null;
+        }
+
+        private bool ValidateIndexes(int x, int y) =>
+            x >= 0 && x < _tiles.GetLength(0) && y >= 0 && y < _tiles.GetLength(1);
+
+        private int _movingDirection = 0;
+        private (int x, int y) _oldPosition;
+        private (int x, int y) _newPosition;
+        private double _hookedTime;
+
+        private void CalculateNewDirection()
+        {
+            static (int x, int y) GetOffsetDirection(int x, int y, int direction)
+            {
+                return direction switch
+                {
+                    0 => (x, y + 1),
+                    1 => (x + 1, y),
+                    2 => (x, y - 1),
+                    3 => (x - 1, y),
+                    _ => throw new ArgumentException(nameof(direction)),
+                };
+            }
+
+            (var x, var y) = _newPosition;
+
+            bool Intersects(int direction)
+            {
+                if ((_tiles[x, y].ExcludedDirections & (Direction)(1 << direction)) != 0)
+                {
+                    (var nx, var ny) = GetOffsetDirection(x, y, _movingDirection);
+
+                    if (!ValidateIndexes(nx, ny))
+                        return false;
+
+                    direction = (direction + 2) % 4;
+                    if ((_tiles[nx, ny].ExcludedDirections & (Direction)(1 << direction)) != 0)
+                        return false;
+                }
+                return true;
+            }
+
+            if (Intersects(_movingDirection = (_movingDirection + 1) % 4) &&
+                Intersects(_movingDirection = (_movingDirection + 3) % 4) &&
+                Intersects(_movingDirection = (_movingDirection + 3) % 4))
+                _movingDirection = (_movingDirection + 3) % 4;
+
+            _oldPosition = _newPosition;
+            _newPosition = GetOffsetDirection(x, y, _movingDirection);
+        }
+
+        public bool LockMovement { get; set; }
+
+        public event EventHandler OutOfBounds;
+
+        private bool _fade;
         public void Update(GameTime gameTime)
         {
             UpdateCameraDirection();
-            UpdateCameraPosition(gameTime);
+
+            if (LockMovement)
+                return;
+
+            if (!TraverseAutomatically)
+            {
+                UpdateCameraPosition(gameTime);
+
+                if (IsOutOfBounds())
+                    OutOfBounds?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                if (gameTime.TotalGameTime.TotalMilliseconds - _hookedTime > 1000d)
+                {
+                    CalculateNewDirection();
+
+                    if (!ValidateIndexes(_newPosition.x, _newPosition.y))
+                        _fade = true;
+
+                    _hookedTime = gameTime.TotalGameTime.TotalMilliseconds;
+                }
+
+                var lerp = Vector2.Lerp(new Vector2(_oldPosition.x, _oldPosition.y), new Vector2(_newPosition.x, _newPosition.y), (float)(gameTime.TotalGameTime.TotalMilliseconds - _hookedTime) / 1000f);
+                CameraPosition = new Vector3(lerp.X, 0f, -lerp.Y);
+
+                if (_fade)
+                {
+                    var amount = (float)(gameTime.TotalGameTime.TotalMilliseconds - _hookedTime) / 500f;
+
+                    if (amount > 1f)
+                    {
+                        OutOfBounds?.Invoke(this, EventArgs.Empty);
+                        amount = 1f;
+                    }
+
+                    Maze.Game.FadeAlpha = Lerp(0f, 1f, amount);
+                }
+            }
         }
 
         public void Dispose()

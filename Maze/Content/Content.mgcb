@@ -24,6 +24,7 @@
 /importer:EffectImporter
 /processor:EffectProcessor
 /processorParam:DebugMode=Debug
+/processorParam:Defines=
 /build:Shaders/Shader.hlsl
 
 #begin Textures/Ceiling.png
