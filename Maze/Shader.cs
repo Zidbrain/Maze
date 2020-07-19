@@ -10,6 +10,20 @@ namespace Maze
         public abstract void Apply(EffectParameterCollection parameters);
     }
 
+    public class InstancedShaderState : StandartShaderState
+    {
+        public Matrix[] Matrices { get; set; }
+
+        public override void Apply(EffectParameterCollection parameters)
+        {
+            base.Apply(parameters);
+            parameters["_matrices"].SetValue(Matrices);
+        }
+
+        public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
+            techniques["Instanced"];
+    }
+
     public class StandartShaderState : ShaderState
     {
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
@@ -35,7 +49,7 @@ namespace Maze
         }
     }
 
-    public class FogShaderState : StandartShaderState
+    public class FogShaderState : DefferedShaderState
     {
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["Fog"];
@@ -50,6 +64,8 @@ namespace Maze
             parameters["_fogColor"].SetValue(FogColor.ToVector4());
         }
 
+        public FogShaderState(RenderTargets renderTargets) : base(renderTargets) { }
+
         public Plane CameraPlane { get; set; }
 
         public float FogStart { get; set; }
@@ -59,14 +75,14 @@ namespace Maze
         public Color FogColor { get; set; }
     }
 
-    public class RasterizeShaderState : ShaderState
+    public class DefferedShaderState : ShaderState
     {
         public override void Apply(EffectParameterCollection parameters)
         {
             parameters["_texture"].SetValue(Color);
             //parameters["_depthTexture"].SetValue(Depth);
             //parameters["_normal"].SetValue(Normal);
-            //parameters["_position"].SetValue(Position);
+            parameters["_positionTexture"].SetValue(Position);
         }
 
         public Texture2D Color { get; set; }
@@ -74,13 +90,16 @@ namespace Maze
         public Texture2D Normal { get; set; }
         public Texture2D Position { get; set; }
 
-        public RasterizeShaderState(RenderTargets renderTargets)
+        public DefferedShaderState(RenderTargets renderTargets)
         {
             Color = renderTargets.Color;
             Depth = renderTargets.Depth;
             Normal = renderTargets.Normal;
             Position = renderTargets.Position;
         }
+
+        public DefferedShaderState(Texture2D color) =>
+            Color = color;
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["Rasterize"];

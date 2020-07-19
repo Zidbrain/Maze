@@ -3,5 +3,6 @@
 
 #include "Standart.hlsl"
 #include "Fog.hlsl"
+#include "InstancedDrawing.hlsl"
 
 #endif

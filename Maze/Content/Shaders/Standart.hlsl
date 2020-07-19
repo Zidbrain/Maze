@@ -5,20 +5,22 @@
 
 PARAMETER(float4 _color);
 PARAMETER(bool _onlyColor);
-PARAMETER(float4x4 _matrix);
 PARAMETER(float4x4 _transform);
+PARAMETER(float4x4 _matrix);
 
 Pixel StandartVS(in Vertex input)
 {
     Pixel pixel = (Pixel) 0;
     
     pixel.WorldPosition = mul(input.Position, _transform).xyz;
-    pixel.Position = mul(input.Position, mul(_transform, _matrix));
+    pixel.Position = mul(float4(pixel.WorldPosition, 1), _matrix);
     pixel.TextureCoordinate = input.TextureCoordinate;
     pixel.Normal = input.Normal;
     
     return pixel;
 }
+
+PARAMETER(texture2D tex);
 
 PSOutput StandartPS(in Pixel input)
 {
@@ -36,9 +38,9 @@ PSOutput StandartPS(in Pixel input)
     return output;
 }
 
-RasterizePixel RasterizeVS(float4 position : SV_Position, float2 textureCoordinate : TEXCOORD)
+DefferedPixel RasterizeVS(float4 position : SV_Position, float2 textureCoordinate : TEXCOORD)
 {
-    RasterizePixel ret = (RasterizePixel) 0;
+    DefferedPixel ret = (DefferedPixel) 0;
     
     ret.Position = position;
     ret.TextureCoordinate = textureCoordinate;
@@ -46,9 +48,9 @@ RasterizePixel RasterizeVS(float4 position : SV_Position, float2 textureCoordina
     return ret;
 }
 
-float4 RasterizePS(in RasterizePixel input) : SV_Target
+float4 RasterizePS(in DefferedPixel input) : SV_Target
 {
-    return tex2D(textureSampler, input.TextureCoordinate);
+    return pow(tex2D(textureSampler, input.TextureCoordinate), 1 / 2.2);
 }
 
 TECHNIQUE(Standart, StandartVS, StandartPS);

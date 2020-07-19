@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -26,5 +26,9 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.0.1375-develop" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.0.1375-develop" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="mgcb /importer:EffectImporter /processor:EffectProcessor /processorParam:DebugMode=Debug /outputDir:$(TargetDir) /intermediateDir:Content/obj/$(MonoGamePlatform) /platform:Windows /profile:HiDef /compress:False /build:Content/Shaders/Shader.hlsl /r /q" />
+  </Target>
 
 </Project>

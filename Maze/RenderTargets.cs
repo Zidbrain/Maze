@@ -21,7 +21,7 @@ namespace Maze
             Normal = new RenderTarget2D(Maze.Game.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
             Position = new RenderTarget2D(Maze.Game.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Vector4, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
 
-            United = new RenderTarget2D(Maze.Game.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            United = new RenderTarget2D(Maze.Game.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.PreserveContents);
 
             Bindings = new RenderTargetBinding[]
             {

@@ -29,6 +29,8 @@ namespace Maze
 
         public GameTime GameTime { get; private set; }
 
+        private FogShaderState _fogState;
+
         private double _hookedFade;
         private bool _fadeOut;
         public float FadeAlpha { get; set; }
@@ -89,6 +91,13 @@ namespace Maze
                 new VertexPositionTexture(new Vector3(-1,1,1), Vector2.Zero),
                 new VertexPositionTexture(new Vector3(1,1,1), new Vector2(1f,0f))
             });
+
+            _fogState = new FogShaderState(RenderTargets)
+            {
+                FogStart = 2.5f,
+                FogEnd = 5f,
+                FogColor = Color.CornflowerBlue,
+            };
         }
 
         private bool _showMessage = true;
@@ -107,7 +116,6 @@ namespace Maze
             };
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
-            GraphicsDevice.PresentationParameters.MultiSampleCount = 0;
 
             if (Input.Pressed(Keys.Escape))
                 Exit();
@@ -126,8 +134,10 @@ namespace Maze
             Input.Update();
 
             Shader.StandartState.Matrix = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
-                    Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 7.3f);
+                    Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 5f);
             Frustum = new BoundingFrustum(Shader.StandartState.Matrix);
+
+            _fogState.CameraPlane = new Plane(Level.CameraPosition, Level.CameraDirection);
 
             if (_fadeOut)
             {
@@ -155,11 +165,14 @@ namespace Maze
                 DrawableQueue.Dequeue().Draw();
 
             GraphicsDevice.SetRenderTarget(RenderTargets.United);
+            GraphicsDevice.Clear(Color.Blue);
 
-            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: new RasterizeShaderState(RenderTargets));
+            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: _fogState);
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.SetRenderTarget(RenderTargets.United);
+            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: new DefferedShaderState(RenderTargets.United));
 
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-
 
             var text = $"Position X:{Level.CameraPosition.X} Y:{Level.CameraPosition.Y} Z:{Level.CameraPosition.Z}\n" +
             $"Camera Direction X:{Level.CameraDirection.X} Y:{Level.CameraDirection.Y} Z:{Level.CameraDirection.Z}";

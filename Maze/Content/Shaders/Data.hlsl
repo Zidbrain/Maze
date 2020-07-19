@@ -28,7 +28,7 @@ struct Pixel
     float3 Normal : NORMAL;
 };
 
-struct RasterizePixel
+struct DefferedPixel
 {
     float4 Position : SV_Position;
     float2 TextureCoordinate : TEXCOORD;

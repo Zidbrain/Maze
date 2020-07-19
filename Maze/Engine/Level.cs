@@ -14,6 +14,9 @@ namespace Maze.Engine
         private Vector2 _yawpitch;
         private readonly BSPTree _tree;
         private BoundingBox _box;
+        private LevelMesh _mesh;
+
+        private Texture2D _wall, _floor, _ceiling;
 
         public Vector3 CameraDirection { get; private set; }
         public Vector3 CameraPosition { get; private set; }
@@ -188,7 +191,7 @@ namespace Maze.Engine
                     break;
             }
             cells[exitIndex.x, exitIndex.y].removedWall |= (Direction)(1 << side);
-            _exit = new Tile(1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
+            _exit = new Tile(_wall, _floor, _ceiling, 1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
             {
                 Position = new Vector3(exitIndex.x, 0f, -exitIndex.y)
             };
@@ -208,7 +211,7 @@ namespace Maze.Engine
 
                     direction |= cells[x, y].removedWall;
 
-                    _tiles[x, y] = new Tile(1f, direction) { Position = new Vector3(x, 0f, -y) };
+                    _tiles[x, y] = new Tile(_wall, _floor, _ceiling, 1f, direction) { Position = new Vector3(x, 0f, -y) };
                 }
 
             _box = new BoundingBox(new Vector3(0f, 0f, -size) - new Vector3(0.5f), new Vector3(size, 0f, 0f) + new Vector3(0.5f));
@@ -216,6 +219,28 @@ namespace Maze.Engine
 
         public Level()
         {
+            _wall = Maze.Game.Content.Load<Texture2D>("Textures/Wall");
+            _floor = Maze.Game.Content.Load<Texture2D>("Textures/Floor");
+            _ceiling = Maze.Game.Content.Load<Texture2D>("Textures/Ceiling");
+
+            var pos = new[]
+            {
+                new Vector3(-0.5f, 0f, -0.5f),
+                new Vector3(-0.5f, 0f, 0.5f),
+                new Vector3(0.5f, 0f, 0.5f),
+                new Vector3(0.5f, 0f, 0.5f),
+                new Vector3(-0.5f, 0f, -0.5f),
+                new Vector3(0.5f, 0f, -0.5f)
+            };
+
+            var buffer = new VertexBuffer(Maze.Game.GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
+            var data = new VertexPositionTexture[6];
+            for (int i = 0; i < pos.Length; i++)
+                data[i] = new VertexPositionTexture(pos[i], new Vector2(pos[i].X + 0.5f, pos[i].Z + 0.5f));
+            buffer.SetData(data);
+
+            _mesh = new LevelMesh(buffer, _wall, _floor, _ceiling);
+
             GenerateMaze(10);
 
             _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
@@ -227,18 +252,9 @@ namespace Maze.Engine
 
         public void Draw()
         {
-            var state = new FogShaderState()
-            {
-                CameraPlane = new Plane(CameraPosition, CameraDirection),
-                FogStart = 2.5f,
-                FogEnd = 5f,
-                FogColor = Color.CornflowerBlue,
-            };
             foreach (var tile in _tiles)
-            {
-                tile.ShaderState = state;
-                tile.Draw();
-            }
+                tile.Draw(_mesh);
+            _mesh.Draw();
 
             Maze.Game.Shader.StandartState.OnlyColor = true;
             _exit.Draw();

@@ -71,12 +71,8 @@ namespace Maze.Engine
 
         public Direction ExcludedDirections { get; }
 
-        public Tile(float size, Direction excludedDirections, bool hasCeiling = true)
+        public Tile(Texture2D wall, Texture2D floor, Texture2D ceiling, float size, Direction excludedDirections, bool hasCeiling = true)
         {
-            var wall = Maze.Game.Content.Load<Texture2D>("Textures/Wall");
-            var floor = Maze.Game.Content.Load<Texture2D>("Textures/Floor");
-            var ceiling = Maze.Game.Content.Load<Texture2D>("Textures/Ceiling");
-
             _sides = hasCeiling ? new List<Square>()
             {
                 new Square(Matrix.Identity, floor) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size) },
@@ -107,6 +103,15 @@ namespace Maze.Engine
             if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
                 foreach (var side in _sides)
                     side.Draw();
+        }
+
+        public void Draw(LevelMesh mesh)
+        {
+            var intersection = Maze.Game.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+
+            if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
+                foreach (var side in _sides)
+                    side.Draw(mesh);
         }
 
         public void Dispose()

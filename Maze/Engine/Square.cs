@@ -74,6 +74,9 @@ namespace Maze.Engine
             Maze.Game.DrawVertexes(_buffer, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position), shaderState: ShaderState);
         }
 
+        public void Draw(LevelMesh mesh) =>
+            mesh.Add(Texture, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
+
         public void Dispose() =>
             _buffer.Dispose();
     }

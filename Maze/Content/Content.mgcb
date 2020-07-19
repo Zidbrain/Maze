@@ -7,6 +7,7 @@
 /config:
 /profile:HiDef
 /compress:False
+/q
 
 #-------------------------------- References --------------------------------#
 
@@ -20,20 +21,13 @@
 /processorParam:TextureFormat=Color
 /build:Font.spritefont
 
-#begin Shaders/Shader.hlsl
-/importer:EffectImporter
-/processor:EffectProcessor
-/processorParam:DebugMode=Debug
-/processorParam:Defines=
-/build:Shaders/Shader.hlsl
-
 #begin Textures/Ceiling.png
 /importer:TextureImporter
 /processor:TextureProcessor
 /processorParam:ColorKeyColor=255,0,255,255
 /processorParam:ColorKeyEnabled=True
 /processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
+/processorParam:PremultiplyAlpha=False
 /processorParam:ResizeToPowerOfTwo=False
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
@@ -45,7 +39,7 @@
 /processorParam:ColorKeyColor=255,0,255,255
 /processorParam:ColorKeyEnabled=True
 /processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
+/processorParam:PremultiplyAlpha=False
 /processorParam:ResizeToPowerOfTwo=False
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
@@ -56,8 +50,8 @@
 /processor:TextureProcessor
 /processorParam:ColorKeyColor=255,0,255,255
 /processorParam:ColorKeyEnabled=True
-/processorParam:GenerateMipmaps=True
-/processorParam:PremultiplyAlpha=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=False
 /processorParam:ResizeToPowerOfTwo=False
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
