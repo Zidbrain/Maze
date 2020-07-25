@@ -17,7 +17,8 @@ struct Vertex
 {
     float4 Position : SV_Position;
     float2 TextureCoordinate : TEXCOORD0;
-    float3 Normal : NORMAL;
+    float3 Normal : NORMAL0;
+    float3 Tangent : TANGENT0;
 };
 
 struct Pixel
@@ -25,7 +26,7 @@ struct Pixel
     float4 Position : SV_Position;
     float2 TextureCoordinate : TEXCOORD0;
     float3 WorldPosition : TEXCOORD1;
-    float3 Normal : NORMAL;
+    nointerpolation float3x3 TBN : NORMAL0;
 };
 
 struct DefferedPixel
@@ -43,9 +44,18 @@ struct PSOutput
 };
 
 PARAMETER(texture _texture);
-PARAMETER(texture _depthTexture);
-PARAMETER(texture _normalTexture);
-PARAMETER(texture _positionTexture);
+PARAMETER(texture _depthBuffer);
+PARAMETER(texture _normalBuffer);
+PARAMETER(texture _positionBuffer);
+
+PARAMETER(float3 _cameraPosition);
+
+SamplerState wrapSampler = sampler_state
+{
+    AddressU = WRAP;
+    AddressV = WRAP;
+    AddressW = WRAP;
+};
 
 sampler2D textureSampler = sampler_state
 {
@@ -59,22 +69,36 @@ sampler2D textureSampler = sampler_state
 
 sampler2D depthSampler = sampler_state
 {
-    Texture = <_depthTexture>;
+    Texture = <_depthBuffer>;
 };
 
 sampler2D normalSampler = sampler_state
 {
-    Texture = <_normalTexture>;
+    Texture = <_normalBuffer>;
 };
 
 sampler2D positionSampler = sampler_state
 {
-    Texture = <_positionTexture>;
+    Texture = <_positionBuffer>;
 };
 
 float Distance(float3 value, float4 plane)
 {
     return dot(value, plane.xyz) + plane.w;
+}
+
+float3 GetNormal(in float2 texCoord)
+{
+    return (tex2D(normalSampler, texCoord).rgb - float3(0.5, 0.5, 0.5)) * 2;
+}
+
+float3x3 ConstructTBN(in float3 normal, in float3 tangent, in float3x4 transform)
+{          
+    float3 N = normalize(mul(normal, transform).xyz);
+    float3 T = normalize(mul(tangent, transform).xyz);
+    float3 B = cross(N, T);
+    
+    return float3x3(T, B, N);
 }
 
 #endif

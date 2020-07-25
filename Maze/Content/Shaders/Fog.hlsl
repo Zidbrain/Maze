@@ -2,18 +2,22 @@
 #define FOG_DEF
 
 #include "Standart.hlsl"
+#include "Data.hlsl"
 
-PARAMETER(float4 _cameraPlane);
 PARAMETER(float _fogStart);
 PARAMETER(float _fogEnd);
 PARAMETER(float4 _fogColor);
 
 float4 FogPS(in DefferedPixel input) : COLOR0
 {
+    float4 position = tex2D(positionSampler, input.TextureCoordinate);
+    
+    if (position.a == 0)
+        return _fogColor;
+    
     float4 color = tex2D(textureSampler, input.TextureCoordinate);
-    float3 position = tex2D(positionSampler, input.TextureCoordinate).rgb;
 
-    float dist = Distance(position, _cameraPlane);
+    float dist = distance(position.xyz, _cameraPosition);
     if (dist >= _fogStart)
     {
         if (dist > _fogEnd)

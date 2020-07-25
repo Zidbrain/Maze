@@ -3,6 +3,8 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using static System.Math;
 using System;
+using Maze.Graphics.Shaders;
+using Maze.Graphics;
 
 namespace Maze.Engine
 {
@@ -18,7 +20,7 @@ namespace Maze.Engine
             new Vector3(0.5f, 0f, -0.5f)
         };
 
-        private readonly VertexPositionNormalTexture[] _vertexes;
+        private readonly CommonVertex[] _vertexes;
         private readonly VertexBuffer _buffer;
         private readonly Matrix _transform;
 
@@ -29,6 +31,8 @@ namespace Maze.Engine
         public ShaderState ShaderState { get; set; }
 
         public Texture2D Texture { get; set; }
+        public Texture2D Normal { get; set; }
+
         public IEnumerable<Polygon> Polygones
         {
             get
@@ -49,11 +53,11 @@ namespace Maze.Engine
 
         public Square(Matrix basis, Texture2D texture)
         {
-            _vertexes = new VertexPositionNormalTexture[6];
+            _vertexes = new CommonVertex[6];
             for (var i = 0; i < _vertexes.Length; i++)
-                _vertexes[i] = new VertexPositionNormalTexture(s_pos[i], basis.Up, new Vector2(s_pos[i].X + 0.5f, s_pos[i].Z + 0.5f));
+                _vertexes[i] = new CommonVertex(s_pos[i], new Vector2(s_pos[i].X + 0.5f, s_pos[i].Z + 0.5f), basis.Up, basis.Right);
 
-            _buffer = new DynamicVertexBuffer(Maze.Game.GraphicsDevice, typeof(VertexPositionNormalTexture), 6, BufferUsage.WriteOnly);
+            _buffer = new DynamicVertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
             _buffer.SetData(_vertexes);
 
             _transform = basis;
@@ -63,19 +67,20 @@ namespace Maze.Engine
         public void Draw()
         {
             if (ShaderState is null)
-                ShaderState = Maze.Game.Shader.StandartState;
+                ShaderState = Maze.Instance.Shader.StandartState;
             
             if (ShaderState is StandartShaderState state)
             {
                 state.Texture = Texture;
                 state.Color = Color;
+                state.NormalTexture = Normal;
             }
 
-            Maze.Game.DrawVertexes(_buffer, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position), shaderState: ShaderState);
+            Maze.Instance.DrawVertexes(_buffer, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position), shaderState: ShaderState);
         }
 
         public void Draw(LevelMesh mesh) =>
-            mesh.Add(Texture, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
+            mesh.Add((Texture, Normal), Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
 
         public void Dispose() =>
             _buffer.Dispose();

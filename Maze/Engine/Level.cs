@@ -4,9 +4,47 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using static Microsoft.Xna.Framework.MathHelper;
 using System.Collections.Generic;
+using Maze.Graphics;
 
 namespace Maze.Engine
 {
+    public sealed class LevelTextures
+    {
+        public Texture2D Wall { get; }
+
+        public Texture2D Floor { get; }
+
+        public Texture2D Ceiling { get; }
+
+        public Texture2D WallNormal { get; }
+
+        public Texture2D FloorNormal { get; }
+
+        public Texture2D CeilingNormal { get; }
+
+        public LevelTextures()
+        {
+            Wall = Maze.Instance.Content.Load<Texture2D>("Textures/Wall");
+            Floor = Maze.Instance.Content.Load<Texture2D>("Textures/Floor");
+            Ceiling = Maze.Instance.Content.Load<Texture2D>("Textures/Ceiling");
+
+            WallNormal = Maze.Instance.Content.Load<Texture2D>("Textures/Wall-normal");
+            FloorNormal = Maze.Instance.Content.Load<Texture2D>("Textures/Floor-normal");
+            CeilingNormal = Maze.Instance.Content.Load<Texture2D>("Textures/Ceiling-normal");
+        }
+
+        public (Texture2D texture, Texture2D normal)[] GetArray()
+        {
+            var ret = new (Texture2D texture, Texture2D normal)[3];
+
+            ret[0] = (Wall, WallNormal);
+            ret[1] = (Floor, FloorNormal);
+            ret[2] = (Ceiling, CeilingNormal);
+
+            return ret;
+        }
+    }
+
     public class Level : IDrawable, IDisposable
     {
         private Tile[,] _tiles;
@@ -14,9 +52,9 @@ namespace Maze.Engine
         private Vector2 _yawpitch;
         private readonly BSPTree _tree;
         private BoundingBox _box;
-        private LevelMesh _mesh;
+        private readonly LevelMesh _mesh;
 
-        private Texture2D _wall, _floor, _ceiling;
+        public LightEngine LightEngine { get; }
 
         public Vector3 CameraDirection { get; private set; }
         public Vector3 CameraPosition { get; private set; }
@@ -24,9 +62,9 @@ namespace Maze.Engine
 
         private void UpdateCameraDirection()
         {
-            if (Maze.Game.IsActive)
+            if (Maze.Instance.IsActive)
             {
-                var dif = (Mouse.GetState().Position - new Point(Maze.Game.Window.ClientBounds.Width / 2, Maze.Game.Window.ClientBounds.Height / 2)).ToVector2() / 750f;
+                var dif = (Mouse.GetState().Position - new Point(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2)).ToVector2() / 750f;
                 _yawpitch -= dif;
 
                 var transform = Matrix.CreateFromYawPitchRoll(_yawpitch.X, _yawpitch.Y, 0f);
@@ -38,7 +76,7 @@ namespace Maze.Engine
                 else if (_yawpitch.Y <= -PiOver2)
                     _yawpitch.Y = -PiOver2;
 
-                Mouse.SetPosition(Maze.Game.Window.ClientBounds.Width / 2, Maze.Game.Window.ClientBounds.Height / 2);
+                Mouse.SetPosition(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2);
             }
         }
 
@@ -191,14 +229,14 @@ namespace Maze.Engine
                     break;
             }
             cells[exitIndex.x, exitIndex.y].removedWall |= (Direction)(1 << side);
-            _exit = new Tile(_wall, _floor, _ceiling, 1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
+            _exit = new Tile(this, 1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
             {
                 Position = new Vector3(exitIndex.x, 0f, -exitIndex.y)
             };
 
             _tiles = new Tile[size, size];
-            for (int x = 0; x < size; x++)
-                for (int y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+                for (var y = 0; y < size; y++)
                 {
                     Direction direction;
                     if (x == 0 && y == 0)
@@ -211,17 +249,29 @@ namespace Maze.Engine
 
                     direction |= cells[x, y].removedWall;
 
-                    _tiles[x, y] = new Tile(_wall, _floor, _ceiling, 1f, direction) { Position = new Vector3(x, 0f, -y) };
+                    _tiles[x, y] = new Tile(this, 1f, direction) { Position = new Vector3(x, 0f, -y) };
                 }
 
             _box = new BoundingBox(new Vector3(0f, 0f, -size) - new Vector3(0.5f), new Vector3(size, 0f, 0f) + new Vector3(0.5f));
         }
 
+        public LevelTextures Textures { get; }
+
+        private void UpdateLights()
+        {
+            for (int x = 0; x < _tiles.GetLength(0); x++)
+                for (int y =0; y < _tiles.GetLength(1); y++)
+                {
+                    if (Vector3.Distance(_tiles[x, y].Light.Position, CameraPosition) >= 1.5f)
+                        LightEngine.Lights.Remove(_tiles[x, y].Light);
+                    else if (!LightEngine.Lights.Contains(_tiles[x, y].Light))
+                        LightEngine.Lights.Add(_tiles[x, y].Light);                        
+                }
+        }
+
         public Level()
         {
-            _wall = Maze.Game.Content.Load<Texture2D>("Textures/Wall");
-            _floor = Maze.Game.Content.Load<Texture2D>("Textures/Floor");
-            _ceiling = Maze.Game.Content.Load<Texture2D>("Textures/Ceiling");
+            Textures = new LevelTextures();
 
             var pos = new[]
             {
@@ -233,13 +283,13 @@ namespace Maze.Engine
                 new Vector3(0.5f, 0f, -0.5f)
             };
 
-            var buffer = new VertexBuffer(Maze.Game.GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
-            var data = new VertexPositionTexture[6];
-            for (int i = 0; i < pos.Length; i++)
-                data[i] = new VertexPositionTexture(pos[i], new Vector2(pos[i].X + 0.5f, pos[i].Z + 0.5f));
+            var buffer = new VertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
+            var data = new CommonVertex[6];
+            for (var i = 0; i < pos.Length; i++)
+                data[i] = new CommonVertex(pos[i], new Vector2(pos[i].X + 0.5f, pos[i].Z + 0.5f), new Vector3(0, 1, 0), new Vector3(0, 0, 1));
             buffer.SetData(data);
 
-            _mesh = new LevelMesh(buffer, _wall, _floor, _ceiling);
+            _mesh = new LevelMesh(buffer, this);
 
             GenerateMaze(10);
 
@@ -248,6 +298,11 @@ namespace Maze.Engine
             CameraPosition = new Vector3(0f, -0f, 0f);
 
             _hookedTime = -1000;
+
+            LightEngine = new LightEngine()
+            {
+                AmbientColor = new Color(new Vector4(new Vector3(0.2f), 1f))
+            };
         }
 
         public void Draw()
@@ -256,12 +311,14 @@ namespace Maze.Engine
                 tile.Draw(_mesh);
             _mesh.Draw();
 
-            Maze.Game.Shader.StandartState.OnlyColor = true;
+            Maze.Instance.Shader.StandartState.OnlyColor = true;
             _exit.Draw();
-            Maze.Game.Shader.StandartState.OnlyColor = false;
+            Maze.Instance.Shader.StandartState.OnlyColor = false;
+
+            LightEngine.Draw();
         }
 
-        public bool TraverseAutomatically { get; set; } = true;
+        public bool TraverseAutomatically { get; set; } = false;
 
         private (int x, int y)? GetTile(Vector2 position)
         {
@@ -368,9 +425,11 @@ namespace Maze.Engine
                         amount = 1f;
                     }
 
-                    Maze.Game.FadeAlpha = Lerp(0f, 1f, amount);
+                    Maze.Instance.FadeAlpha = Lerp(0f, 1f, amount);
                 }
             }
+
+            UpdateLights();
         }
 
         public void Dispose()

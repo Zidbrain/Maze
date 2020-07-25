@@ -2,6 +2,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
+using Maze.Graphics;
+using Maze.Graphics.Shaders;
 
 namespace Maze.Engine
 {
@@ -29,6 +31,8 @@ namespace Maze.Engine
                 var delta = value - _position;
                 foreach (var side in _sides)
                     side.Position += delta;
+
+                Light.Position += delta;
 
                 _position = value;
             }
@@ -69,22 +73,24 @@ namespace Maze.Engine
             }
         }
 
+        public PointLight Light { get; }
+
         public Direction ExcludedDirections { get; }
 
-        public Tile(Texture2D wall, Texture2D floor, Texture2D ceiling, float size, Direction excludedDirections, bool hasCeiling = true)
+        public Tile(Level level, float size, Direction excludedDirections, bool hasCeiling = true)
         {
             _sides = hasCeiling ? new List<Square>()
             {
-                new Square(Matrix.Identity, floor) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size) },
-                new Square(Matrix.Identity, ceiling) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size) },
+                new Square(Matrix.Identity, level.Textures.Floor) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size), Normal = level.Textures.FloorNormal },
+                new Square(Matrix.Identity, level.Textures.Ceiling) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size), Normal = level.Textures.CeilingNormal },
             } : new List<Square>();
 
             var add = new[]
             {
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), wall) { Position = new Vector3(0f, 0f, -size / 2f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), wall) { Position = new Vector3(size / 2f, 0f, 0f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), wall) { Position = new Vector3(0f, 0f, size / 2f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), wall) { Position = new Vector3(-size / 2f, 0f, 0f), Size = new Vector2(size) },
+                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(0f, 0f, -size / 2f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
+                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(size / 2f, 0f, 0f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
+                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(0f, 0f, size / 2f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
+                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(-size / 2f, 0f, 0f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
             };
 
             for (var i = 0; i < 4; i++)
@@ -94,11 +100,20 @@ namespace Maze.Engine
             ExcludedDirections = excludedDirections;
 
             Size = size;
+
+            Light = new PointLight()
+            {
+                DiffusePower = 3,
+                Radius = 1f,
+                SpecularHardness = 550,
+                SpecularPower = 10,
+                Position = new Vector3(0f, size / 2f - 0.1f, 0f)
+            };
         }
 
         public void Draw()
         {
-            var intersection = Maze.Game.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+            var intersection = Maze.Instance.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
 
             if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
                 foreach (var side in _sides)
@@ -107,7 +122,7 @@ namespace Maze.Engine
 
         public void Draw(LevelMesh mesh)
         {
-            var intersection = Maze.Game.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+            var intersection = Maze.Instance.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
 
             if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
                 foreach (var side in _sides)

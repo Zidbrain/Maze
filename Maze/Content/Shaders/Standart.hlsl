@@ -8,6 +8,11 @@ PARAMETER(bool _onlyColor);
 PARAMETER(float4x4 _transform);
 PARAMETER(float4x4 _matrix);
 
+PARAMETER(bool _normalEnabled);
+PARAMETER(Texture2D _normalTexture);
+
+PARAMETER(float _gamma);
+
 Pixel StandartVS(in Vertex input)
 {
     Pixel pixel = (Pixel) 0;
@@ -15,7 +20,7 @@ Pixel StandartVS(in Vertex input)
     pixel.WorldPosition = mul(input.Position, _transform).xyz;
     pixel.Position = mul(float4(pixel.WorldPosition, 1), _matrix);
     pixel.TextureCoordinate = input.TextureCoordinate;
-    pixel.Normal = input.Normal;
+    pixel.TBN = ConstructTBN(input.Normal, input.Tangent, (float3x4) _transform);
     
     return pixel;
 }
@@ -32,7 +37,10 @@ PSOutput StandartPS(in Pixel input)
         output.Color = tex2D(textureSampler, input.TextureCoordinate) * _color;
     
     output.Depth = input.Position.z / input.Position.w;
-    output.Normal = float4(input.Normal, 1);
+    
+    float3 normal = (_normalEnabled && !_onlyColor) ? _normalTexture.Sample(wrapSampler, input.TextureCoordinate).rgb * 2 - float3(1, 1, 1) : float3(0, 0, 1);
+    output.Normal = float4((normalize(mul(normal, input.TBN)) + float3(1, 1, 1)) / 2, 1);
+    
     output.Position = float4(input.WorldPosition, 1);
     
     return output;
@@ -50,10 +58,16 @@ DefferedPixel RasterizeVS(float4 position : SV_Position, float2 textureCoordinat
 
 float4 RasterizePS(in DefferedPixel input) : SV_Target
 {
-    return pow(tex2D(textureSampler, input.TextureCoordinate), 1 / 2.2);
+    return tex2D(textureSampler, input.TextureCoordinate);
+}
+
+float4 GammaPS(in DefferedPixel input) : SV_Target
+{
+    return pow(RasterizePS(input) * _color, 1 / _gamma);
 }
 
 TECHNIQUE(Standart, StandartVS, StandartPS);
 TECHNIQUE(Rasterize, RasterizeVS, RasterizePS);
+TECHNIQUE(Gamma, RasterizeVS, GammaPS);
 
 #endif

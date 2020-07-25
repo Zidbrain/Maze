@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using Maze.Engine;
 using Microsoft.Xna.Framework.Graphics;
+using Maze.Graphics;
 
 namespace Maze
 {
@@ -25,7 +26,7 @@ namespace Maze
 
         public static Texture2D CreateSample(in Color color, in Vector2 size)
         {
-            var ret = new Texture2D(Maze.Game.GraphicsDevice, (int)size.X, (int)size.Y);
+            var ret = new Texture2D(Maze.Instance.GraphicsDevice, (int)size.X, (int)size.Y);
 
             var surface = (int)size.X * (int)size.Y;
             var data = new Color[surface];

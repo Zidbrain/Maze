@@ -2,8 +2,10 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Maze.Graphics;
 using System.Collections.Generic;
 using static Microsoft.Xna.Framework.MathHelper;
+using Maze.Graphics.Shaders;
 
 namespace Maze
 {
@@ -54,6 +56,8 @@ namespace Maze
         {
             base.LoadContent();
 
+            GraphicsDevice.DiscardColor = Color.Transparent;
+
             Content.RootDirectory = "Content";
             Shader = new Shader();
 
@@ -65,6 +69,8 @@ namespace Maze
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
             Mouse.SetPosition(Window.ClientBounds.Width / 2, Window.ClientBounds.Height / 2);
+
+            RenderTargets = new RenderTargets();
 
             Level = new Level() { LockMovement = true };
             Level.OutOfBounds += GenerateNewLevel;
@@ -80,7 +86,6 @@ namespace Maze
                 _hookedFade = GameTime.TotalGameTime.TotalMilliseconds;
             }
 
-            RenderTargets = new RenderTargets();
             _vertexBuffer = new VertexBuffer(GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
             _vertexBuffer.SetData(new[]
             {
@@ -92,7 +97,7 @@ namespace Maze
                 new VertexPositionTexture(new Vector3(1,1,1), new Vector2(1f,0f))
             });
 
-            _fogState = new FogShaderState(RenderTargets)
+            _fogState = new FogShaderState(RenderTargets.United, RenderTargets.Position)
             {
                 FogStart = 2.5f,
                 FogEnd = 5f,
@@ -128,6 +133,8 @@ namespace Maze
 
             Level.Update(gameTime);
 
+           // LightEngine.Lights[0].Position = Level.CameraPosition;
+
             if (Input.PressedOnce(Keys.F))
                 _graphics.ToggleFullScreen();
 
@@ -137,7 +144,7 @@ namespace Maze
                     Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 5f);
             Frustum = new BoundingFrustum(Shader.StandartState.Matrix);
 
-            _fogState.CameraPlane = new Plane(Level.CameraPosition, Level.CameraDirection);
+            _fogState.CameraPosition = Level.CameraPosition;
 
             if (_fadeOut)
             {
@@ -152,25 +159,19 @@ namespace Maze
             }
         }
 
-
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.SetRenderTargets(RenderTargets);
 
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(Color.Transparent);
 
             DrawableQueue.Enqueue(Level);
 
             while (DrawableQueue.Count > 0)
                 DrawableQueue.Dequeue().Draw();
 
-            GraphicsDevice.SetRenderTarget(RenderTargets.United);
-            GraphicsDevice.Clear(Color.Blue);
-
-            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: _fogState);
-            GraphicsDevice.SetRenderTarget(null);
-            GraphicsDevice.SetRenderTarget(RenderTargets.United);
-            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: new DefferedShaderState(RenderTargets.United));
+            DrawQuad(_fogState);
+            DrawQuad(new GammaShaderState(RenderTargets.United) { Gamma = 1.6f });
 
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
 
@@ -220,9 +221,18 @@ namespace Maze
             GraphicsDevice.DrawPrimitives(PrimitiveType.TriangleList, start, primitiveCount);
         }
 
-        public static Maze Game { get; } = new Maze();
+        public void DrawQuad(DefferedShaderState state)
+        {
+            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: state);
+
+            var targets = GraphicsDevice.GetRenderTargets();
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.SetRenderTargets(targets);
+        }
+
+        public static Maze Instance { get; } = new Maze();
 
         public static void Main() =>
-            Game.Run();
+            Instance.Run();
     }
 }
