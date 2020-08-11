@@ -74,11 +74,10 @@ namespace Maze
 
             Level = new Level() { LockMovement = true };
             Level.OutOfBounds += GenerateNewLevel;
-            
+
             void GenerateNewLevel(object sender, System.EventArgs e)
             {
                 _showMessage = true;
-                Level.Dispose();
                 Level = new Level() { LockMovement = true };
                 Level.OutOfBounds += GenerateNewLevel;
 
@@ -118,6 +117,9 @@ namespace Maze
             {
                 CullMode = CullMode.None,
                 MultiSampleAntiAlias = true,
+                DepthBias = 0f,
+                DepthClipEnable = false,
+                SlopeScaleDepthBias = 0f
             };
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.SamplerStates[0] = SamplerState.AnisotropicClamp;
@@ -133,16 +135,16 @@ namespace Maze
 
             Level.Update(gameTime);
 
-           // LightEngine.Lights[0].Position = Level.CameraPosition;
+            // LightEngine.Lights[0].Position = Level.CameraPosition;
 
             if (Input.PressedOnce(Keys.F))
                 _graphics.ToggleFullScreen();
 
             Input.Update();
 
-            Shader.StandartState.Matrix = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
+            Shader.StandartState.WorldViewProjection = Matrix.CreateLookAt(Level.CameraPosition, Level.CameraPosition + Level.CameraDirection, Level.CameraUp) *
                     Matrix.CreatePerspectiveFieldOfView(ToRadians(60f), ScreenSize.X / ScreenSize.Y, 0.01f, 5f);
-            Frustum = new BoundingFrustum(Shader.StandartState.Matrix);
+            Frustum = new BoundingFrustum(Shader.StandartState.WorldViewProjection);
 
             _fogState.CameraPosition = Level.CameraPosition;
 
@@ -186,35 +188,25 @@ namespace Maze
                 _spriteBatch.DrawString(Font, text, new Vector2(1920f / 2f - Font.MeasureString(text).X * 1.5f, 1080f / 2f - Font.MeasureString(text).Y * 1.5f),
                     Color.White, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);
             }
-            
+
             _spriteBatch.End();
 
             GraphicsDevice.SetRenderTarget(null);
 
             _spriteBatch.Begin(blendState: BlendState.NonPremultiplied);
             _spriteBatch.Draw(RenderTargets.United, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), Color.White);
-            _spriteBatch.Draw(Extensions.Sample, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), new Color(new Vector4(1f, 1f, 1f, FadeAlpha))); 
+            _spriteBatch.Draw(Extensions.Sample, new Rectangle(0, 0, Window.ClientBounds.Width, Window.ClientBounds.Height), new Color(new Vector4(1f, 1f, 1f, FadeAlpha)));
             _spriteBatch.End();
 
             base.Draw(gameTime);
         }
 
-        public void DrawVertexes(VertexBuffer buffer, in Matrix transform, int start = 0, int primitiveCount = 2, ShaderState shaderState = null)
+        public void DrawVertexes(VertexBuffer buffer, ShaderState shaderState, int start = 0, int primitiveCount = 2)
         {
             if (shaderState is null)
-            {
-                Shader.StandartState.Transform = transform;
                 Shader.State = Shader.StandartState;
-            }
             else
-            {
-                if (shaderState is StandartShaderState standartState)
-                {
-                    standartState.Matrix = Shader.StandartState.Matrix;
-                    standartState.Transform = transform;
-                }
                 Shader.State = shaderState;
-            }
 
             GraphicsDevice.SetVertexBuffer(buffer);
             Shader.Apply();
@@ -223,7 +215,7 @@ namespace Maze
 
         public void DrawQuad(DefferedShaderState state)
         {
-            DrawVertexes(_vertexBuffer, Matrix.Identity, shaderState: state);
+            DrawVertexes(_vertexBuffer, state);
 
             var targets = GraphicsDevice.GetRenderTargets();
             GraphicsDevice.SetRenderTarget(null);

@@ -3,14 +3,23 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Maze.Graphics.Shaders
 {
-    public class StandartShaderState : ShaderState
+    public abstract class TransformShaderState : ShaderState
+    {
+        public Matrix WorldViewProjection { get; set; }
+
+        public Matrix Transform { get; set; }
+
+        public override void Apply(EffectParameterCollection parameters)
+        {
+            parameters["_matrix"].SetValue(WorldViewProjection);
+            parameters["_transform"].SetValue(Transform);
+        }
+    }
+
+    public class StandartShaderState : TransformShaderState
     {
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["Standart"];
-
-        public Matrix Matrix { get; set; }
-
-        public Matrix Transform { get; set; }
 
         public Color Color { get; set; } = Color.White;
 
@@ -22,8 +31,7 @@ namespace Maze.Graphics.Shaders
 
         public override void Apply(EffectParameterCollection parameters)
         {
-            parameters["_matrix"].SetValue(Matrix);
-            parameters["_transform"].SetValue(Transform);
+            base.Apply(parameters);
             parameters["_color"].SetValue(Color.ToVector4());
             parameters["_texture"].SetValue(Texture);
             parameters["_onlyColor"].SetValue(OnlyColor);

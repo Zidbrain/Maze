@@ -20,7 +20,7 @@ Pixel StandartVS(in Vertex input)
     pixel.WorldPosition = mul(input.Position, _transform).xyz;
     pixel.Position = mul(float4(pixel.WorldPosition, 1), _matrix);
     pixel.TextureCoordinate = input.TextureCoordinate;
-    pixel.TBN = ConstructTBN(input.Normal, input.Tangent, (float3x4) _transform);
+    pixel.TBN = ConstructTBN(pixel.WorldPosition, input.Normal, input.Tangent, (float3x4) _transform);
     
     return pixel;
 }
@@ -36,10 +36,15 @@ PSOutput StandartPS(in Pixel input)
     else
         output.Color = tex2D(textureSampler, input.TextureCoordinate) * _color;
     
-    output.Depth = input.Position.z / input.Position.w;
+    output.Depth = input.Position.w;
     
-    float3 normal = (_normalEnabled && !_onlyColor) ? _normalTexture.Sample(wrapSampler, input.TextureCoordinate).rgb * 2 - float3(1, 1, 1) : float3(0, 0, 1);
-    output.Normal = float4((normalize(mul(normal, input.TBN)) + float3(1, 1, 1)) / 2, 1);
+    if (_normalEnabled && !_onlyColor)
+    {
+        float3 normal = _normalTexture.Sample(wrapSampler, input.TextureCoordinate).rgb * 2 - float3(1, 1, 1);
+        output.Normal = float4((normalize(mul(normal, input.TBN)) + float3(1, 1, 1)) / 2, 1);
+    }
+    else
+        output.Normal = float4((normalize(input.TBN[2]) + float3(1, 1, 1)) / 2, 1);
     
     output.Position = float4(input.WorldPosition, 1);
     

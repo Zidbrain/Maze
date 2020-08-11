@@ -21,7 +21,7 @@ namespace Maze.Graphics.Shaders
         }
 
         public ShaderState State { get; set; }
-
+        
         public StandartShaderState StandartState { get; }
 
         public void Apply()

@@ -1,14 +1,12 @@
 ﻿using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
-using static System.Math;
-using System;
 using Maze.Graphics.Shaders;
 using Maze.Graphics;
 
 namespace Maze.Engine
 {
-    public class Square : IDrawable, ICollidable, IDisposable
+    public class Square : IDrawable, ICollidable
     {
         private static readonly Vector3[] s_pos =
         {
@@ -20,8 +18,18 @@ namespace Maze.Engine
             new Vector3(0.5f, 0f, -0.5f)
         };
 
-        private readonly CommonVertex[] _vertexes;
-        private readonly VertexBuffer _buffer;
+        private static readonly VertexBuffer s_buffer;
+
+        static Square()
+        {
+            var vertexes = new CommonVertex[6];
+            for (var i = 0; i < vertexes.Length; i++)
+                vertexes[i] = new CommonVertex(s_pos[i], new Vector2(s_pos[i].X + 0.5f, s_pos[i].Z + 0.5f), Vector3.Up, Vector3.Right);
+
+            s_buffer = new VertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
+            s_buffer.SetData(vertexes);
+        }
+
         private readonly Matrix _transform;
 
         public Vector3 Position { get; set; }
@@ -38,11 +46,11 @@ namespace Maze.Engine
             get
             {
                 var ret = new Polygon[2];
-                for (int i = 0; i < 2; i++)
+                for (var i = 0; i < 2; i++)
                 {
                     var buf = new Vector3[3];
-                    for (int j = 0; j < 3; j++)
-                        buf[j] = Vector3.Transform(_vertexes[i * 3 + j].Position, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
+                    for (var j = 0; j < 3; j++)
+                        buf[j] = Vector3.Transform(s_pos[i * 3 + j], Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
 
                     ret[i] = new Polygon(buf);
                 }
@@ -51,38 +59,36 @@ namespace Maze.Engine
             }
         }
 
-        public Square(Matrix basis, Texture2D texture)
+        private readonly MeshInfo _info;
+
+        public Square(Matrix basis, Texture2D texture, Texture2D normal)
         {
-            _vertexes = new CommonVertex[6];
-            for (var i = 0; i < _vertexes.Length; i++)
-                _vertexes[i] = new CommonVertex(s_pos[i], new Vector2(s_pos[i].X + 0.5f, s_pos[i].Z + 0.5f), basis.Up, basis.Right);
-
-            _buffer = new DynamicVertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
-            _buffer.SetData(_vertexes);
-
             _transform = basis;
             Texture = texture;
+            Normal = normal;
+
+            _info = new MeshInfo(texture, normal, s_buffer);
         }
 
         public void Draw()
         {
             if (ShaderState is null)
-                ShaderState = Maze.Instance.Shader.StandartState;
-            
-            if (ShaderState is StandartShaderState state)
+                ShaderState = new StandartShaderState();
+
+            if (ShaderState is TransformShaderState state)
+                state.Transform = Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position);
+
+            if (ShaderState is StandartShaderState standartState)
             {
-                state.Texture = Texture;
-                state.Color = Color;
-                state.NormalTexture = Normal;
+                standartState.Texture = Texture;
+                standartState.Color = Color;
+                standartState.NormalTexture = Normal;
             }
 
-            Maze.Instance.DrawVertexes(_buffer, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position), shaderState: ShaderState);
+            Maze.Instance.DrawVertexes(s_buffer, ShaderState);
         }
 
-        public void Draw(LevelMesh mesh) =>
-            mesh.Add((Texture, Normal), Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
-
-        public void Dispose() =>
-            _buffer.Dispose();
+        public void Draw(AutoMesh mesh) =>
+            mesh.Add(_info, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
     }
 }

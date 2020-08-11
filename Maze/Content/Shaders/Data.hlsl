@@ -57,6 +57,13 @@ SamplerState wrapSampler = sampler_state
     AddressW = WRAP;
 };
 
+SamplerState borderSampler = sampler_state
+{
+    AddressU = BORDER;
+    AddressV = BORDER;
+    BorderColor = 0x00000000;
+};
+
 sampler2D textureSampler = sampler_state
 {
     Texture = <_texture>;
@@ -92,9 +99,16 @@ float3 GetNormal(in float2 texCoord)
     return (tex2D(normalSampler, texCoord).rgb - float3(0.5, 0.5, 0.5)) * 2;
 }
 
-float3x3 ConstructTBN(in float3 normal, in float3 tangent, in float3x4 transform)
+void OrientVector(inout float3 vec, in float3 onPosition, in float3 vectorPosition)
+{
+    vec = normalize(vec * dot(onPosition - vectorPosition, vec));
+}
+
+float3x3 ConstructTBN(in float3 position, in float3 normal, in float3 tangent, in float3x4 transform)
 {          
-    float3 N = normalize(mul(normal, transform).xyz);
+    float3 N = mul(normal, transform).xyz;
+    OrientVector(N, _cameraPosition, position);
+    
     float3 T = normalize(mul(tangent, transform).xyz);
     float3 B = cross(N, T);
     

@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using static Microsoft.Xna.Framework.MathHelper;
 using System.Collections.Generic;
 using Maze.Graphics;
+using Maze.Graphics.Shaders;
 
 namespace Maze.Engine
 {
@@ -45,14 +46,17 @@ namespace Maze.Engine
         }
     }
 
-    public class Level : IDrawable, IDisposable
+    public class Level : IDrawable
     {
         private Tile[,] _tiles;
         private Tile _exit;
         private Vector2 _yawpitch;
         private readonly BSPTree _tree;
         private BoundingBox _box;
-        private readonly LevelMesh _mesh;
+
+        public AutoMesh Mesh { get; }
+
+        public LevelObjectCollection Objects { get; }
 
         public LightEngine LightEngine { get; }
 
@@ -210,8 +214,8 @@ namespace Maze.Engine
             }
 
             var random = new Random();
-            var side = random.Next(0, 4);
-            var index = random.Next(0, size);
+            var side = 2;//random.Next(0, 4);
+            var index = 0;//random.Next(0, size);
             var exitIndex = (x: 0, y: 0);
             switch (side)
             {
@@ -231,7 +235,10 @@ namespace Maze.Engine
             cells[exitIndex.x, exitIndex.y].removedWall |= (Direction)(1 << side);
             _exit = new Tile(this, 1f, (Direction.Up | Direction.Down | Direction.Left | Direction.Right) ^ (Direction)(1 << side), false)
             {
-                Position = new Vector3(exitIndex.x, 0f, -exitIndex.y)
+                Position = new Vector3(exitIndex.x, 0f, -exitIndex.y),
+                ShaderState = new Graphics.Shaders.StandartShaderState() { OnlyColor = true },
+                DrawToMesh = false,
+                EnableCollision = false,
             };
 
             _tiles = new Tile[size, size];
@@ -252,7 +259,7 @@ namespace Maze.Engine
                     _tiles[x, y] = new Tile(this, 1f, direction) { Position = new Vector3(x, 0f, -y) };
                 }
 
-            _box = new BoundingBox(new Vector3(0f, 0f, -size) - new Vector3(0.5f), new Vector3(size, 0f, 0f) + new Vector3(0.5f));
+            _box = new BoundingBox(new Vector3(-0.5f, -0.5f, -size + 0.5f), new Vector3(size - 0.5f, 0.5f, 0.5f));
         }
 
         public LevelTextures Textures { get; }
@@ -260,18 +267,21 @@ namespace Maze.Engine
         private void UpdateLights()
         {
             for (int x = 0; x < _tiles.GetLength(0); x++)
-                for (int y =0; y < _tiles.GetLength(1); y++)
+                for (int y = 0; y < _tiles.GetLength(1); y++)
                 {
-                    if (Vector3.Distance(_tiles[x, y].Light.Position, CameraPosition) >= 1.5f)
-                        LightEngine.Lights.Remove(_tiles[x, y].Light);
-                    else if (!LightEngine.Lights.Contains(_tiles[x, y].Light))
-                        LightEngine.Lights.Add(_tiles[x, y].Light);                        
+                    if (_tiles[x, y].LightEnabled)
+                        if (Vector3.Distance(_tiles[x, y].Light.Position, CameraPosition) >= 1.5f)
+                            LightEngine.Lights.Remove(_tiles[x, y].Light);
+                        else if (!LightEngine.Lights.Contains(_tiles[x, y].Light))
+                            LightEngine.Lights.Add(_tiles[x, y].Light);
                 }
         }
 
         public Level()
         {
             Textures = new LevelTextures();
+
+            Objects = new LevelObjectCollection(this);
 
             var pos = new[]
             {
@@ -289,7 +299,7 @@ namespace Maze.Engine
                 data[i] = new CommonVertex(pos[i], new Vector2(pos[i].X + 0.5f, pos[i].Z + 0.5f), new Vector3(0, 1, 0), new Vector3(0, 0, 1));
             buffer.SetData(data);
 
-            _mesh = new LevelMesh(buffer, this);
+            Mesh = new AutoMesh();
 
             GenerateMaze(10);
 
@@ -299,21 +309,28 @@ namespace Maze.Engine
 
             _hookedTime = -1000;
 
-            LightEngine = new LightEngine()
+            LightEngine = new LightEngine(this)
             {
                 AmbientColor = new Color(new Vector4(new Vector3(0.2f), 1f))
             };
+
+            foreach (var tile in _tiles)
+                Objects.Add(tile);
+            Objects.Add(_exit);
         }
 
         public void Draw()
         {
-            foreach (var tile in _tiles)
-                tile.Draw(_mesh);
-            _mesh.Draw();
+            Objects.SetShaderState(new StandartShaderState
+            {
+                WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection,
+            });
+            (_exit.ShaderState as StandartShaderState).OnlyColor = true;
+            
+            Objects.Intersect(Maze.Instance.Frustum).Draw();
 
-            Maze.Instance.Shader.StandartState.OnlyColor = true;
-            _exit.Draw();
-            Maze.Instance.Shader.StandartState.OnlyColor = false;
+            Mesh.ShaderState.WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection;
+            Mesh.Draw();
 
             LightEngine.Draw();
         }
@@ -430,13 +447,6 @@ namespace Maze.Engine
             }
 
             UpdateLights();
-        }
-
-        public void Dispose()
-        {
-            foreach (var tile in _tiles)
-                tile.Dispose();
-            _exit.Dispose();
         }
     }
 }

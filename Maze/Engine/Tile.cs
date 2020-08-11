@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using Maze.Graphics;
 using Maze.Graphics.Shaders;
@@ -17,13 +16,13 @@ namespace Maze.Engine
         Left = 1 << 3
     }
 
-    public class Tile : IDrawable, ICollidable, IDisposable
+    public class Tile : LevelObject
     {
         private readonly List<Square> _sides;
         private Vector3 _position;
 
         public float Size { get; private set; }
-        public Vector3 Position
+        public override Vector3 Position
         {
             get => _position;
             set
@@ -50,7 +49,9 @@ namespace Maze.Engine
             }
         }
 
-        public IEnumerable<Polygon> Polygones
+        public bool LightEnabled { get; set; } = true;
+
+        public override IEnumerable<Polygon> Polygones
         {
             get
             {
@@ -62,7 +63,7 @@ namespace Maze.Engine
         }
 
         private ShaderState _shaderState;
-        public ShaderState ShaderState
+        public override ShaderState ShaderState
         {
             get => _shaderState;
             set
@@ -77,20 +78,20 @@ namespace Maze.Engine
 
         public Direction ExcludedDirections { get; }
 
-        public Tile(Level level, float size, Direction excludedDirections, bool hasCeiling = true)
+        public Tile(Level level, float size, Direction excludedDirections, bool hasCeiling = true) : base(level)
         {
             _sides = hasCeiling ? new List<Square>()
             {
-                new Square(Matrix.Identity, level.Textures.Floor) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size), Normal = level.Textures.FloorNormal },
-                new Square(Matrix.Identity, level.Textures.Ceiling) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size), Normal = level.Textures.CeilingNormal },
+                new Square(Matrix.Identity, level.Textures.Floor, level.Textures.FloorNormal) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size) },
+                new Square(Matrix.Identity, level.Textures.Ceiling, level.Textures.CeilingNormal) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size) },
             } : new List<Square>();
 
             var add = new[]
             {
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(0f, 0f, -size / 2f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(size / 2f, 0f, 0f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(0f, 0f, size / 2f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall) { Position = new Vector3(-size / 2f, 0f, 0f), Size = new Vector2(size), Normal = level.Textures.WallNormal },
+                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, -size / 2f), Size = new Vector2(size) },
+                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(size / 2f, 0f, 0f), Size = new Vector2(size) },
+                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, size / 2f), Size = new Vector2(size) },
+                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(-size / 2f, 0f, 0f), Size = new Vector2(size) },
             };
 
             for (var i = 0; i < 4; i++)
@@ -103,36 +104,37 @@ namespace Maze.Engine
 
             Light = new PointLight()
             {
-                DiffusePower = 3,
+                DiffusePower = 5,
                 Radius = 1f,
-                SpecularHardness = 550,
-                SpecularPower = 10,
+                SpecularHardness = 600,
+                SpecularPower = 12,
+                Hardness = 1.5f,
                 Position = new Vector3(0f, size / 2f - 0.1f, 0f)
             };
         }
 
-        public void Draw()
+        public override bool Intersects(BoundingFrustum frustum)
         {
-            var intersection = Maze.Instance.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
-
-            if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
-                foreach (var side in _sides)
-                    side.Draw();
+            var intersection = frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+            return intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects;
         }
 
-        public void Draw(LevelMesh mesh)
+        public override bool Intersects(in BoundingSphere sphere)
         {
-            var intersection = Maze.Instance.Frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
-
-            if (intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects)
-                foreach (var side in _sides)
-                    side.Draw(mesh);
+            var intersection = sphere.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
+            return intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects;
         }
 
-        public void Dispose()
+        public override void Draw()
         {
             foreach (var side in _sides)
-                side.Dispose();
+                side.Draw();
+        }
+
+        public override void Draw(AutoMesh mesh)
+        {
+            foreach (var side in _sides)
+                side.Draw(mesh);
         }
     }
 }
