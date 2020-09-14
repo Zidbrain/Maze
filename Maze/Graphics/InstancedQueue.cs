@@ -52,7 +52,7 @@ namespace Maze.Graphics
 
                 Maze.Instance.Shader.State = ShaderState;
                 Maze.Instance.Shader.Apply();
-                gd.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, 2, ShaderState.Matrices.Length, 0);
+                gd.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, 2, ShaderState.Matrices.Length);
             }
 
             _matrices.Clear();

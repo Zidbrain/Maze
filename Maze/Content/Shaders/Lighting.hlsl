@@ -137,7 +137,7 @@ float GetShadowValue(in float3 vecToPixel, in float4 position)
             float2 newUV = uv + offsets;
             float depthLight = _lightShadows.Sample(borderSampler, float3(newUV, face)).r;
             
-            if (depthLight - depthPixel > -0.0001)
+            if (depthLight - depthPixel > -0.0003)
                 value += 1;
         }
     }

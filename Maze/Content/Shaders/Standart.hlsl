@@ -36,7 +36,7 @@ PSOutput StandartPS(in Pixel input)
     else
         output.Color = tex2D(textureSampler, input.TextureCoordinate) * _color;
     
-    output.Depth = input.Position.w;
+    output.Depth = input.Position.z;
     
     if (_normalEnabled && !_onlyColor)
     {
