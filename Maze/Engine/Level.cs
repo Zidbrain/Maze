@@ -46,7 +46,7 @@ namespace Maze.Engine
         }
     }
 
-    public class Level : IDrawable
+    public class Level : IDrawable, IUpdatable, IDisposable
     {
         private Tile[,] _tiles;
         private Tile _exit;
@@ -240,6 +240,7 @@ namespace Maze.Engine
                 DrawToMesh = false,
                 EnableCollision = false,
             };
+            _exit.Light.DiffusePower = 0f;
 
             _tiles = new Tile[size, size];
             for (var x = 0; x < size; x++)
@@ -257,6 +258,7 @@ namespace Maze.Engine
                     direction |= cells[x, y].removedWall;
 
                     _tiles[x, y] = new Tile(this, 1f, direction) { Position = new Vector3(x, 0f, -y) };
+                    _tiles[x, y].Light.DiffusePower = 0f;
                 }
 
             _box = new BoundingBox(new Vector3(-0.5f, -0.5f, -size + 0.5f), new Vector3(size - 0.5f, 0.5f, 0.5f));
@@ -264,16 +266,55 @@ namespace Maze.Engine
 
         public LevelTextures Textures { get; }
 
+        private readonly CustomInterpolation<PointLight>[,] _lightLerps;
+        private readonly bool[,] _activeLights;
+
         private void UpdateLights()
         {
-            for (int x = 0; x < _tiles.GetLength(0); x++)
-                for (int y = 0; y < _tiles.GetLength(1); y++)
+            static CustomInterpolation<PointLight> Create(PointLight light, float from, float to) =>
+                new CustomInterpolation<PointLight>(light,
+                    (obj, value) =>
+                    {
+                        obj.DiffusePower = value;
+                        obj.SpecularPower = value / 5f * 12f;
+                    },
+                    from, to, MathF.Abs(to - from) / 5f * TimeSpan.FromSeconds(0.25d));
+
+            void Remove(object light, EventArgs e) =>
+                LightEngine.Lights.Remove((light as CustomInterpolation<PointLight>).Object);
+
+            for (var x = 0; x < _tiles.GetLength(0); x++)
+                for (var y = 0; y < _tiles.GetLength(1); y++)
                 {
                     if (_tiles[x, y].LightEnabled)
-                        if (Vector3.Distance(_tiles[x, y].Light.Position, CameraPosition) >= 1.5f)
-                            LightEngine.Lights.Remove(_tiles[x, y].Light);
-                        else if (!LightEngine.Lights.Contains(_tiles[x, y].Light))
-                            LightEngine.Lights.Add(_tiles[x, y].Light);
+                    {
+                        var light = _tiles[x, y].Light;
+                        if (Vector3.Distance(light.Position, CameraPosition) >= 1.5f)
+                        {
+                            if (_activeLights[x, y])
+                            {
+                                _lightLerps[x, y]?.Stop(false);
+
+                                _lightLerps[x, y] = Create(light, light.DiffusePower, 0f);
+                                _lightLerps[x, y].Stopped += Remove;
+                                _lightLerps[x, y].Start();
+                            }
+                            _activeLights[x, y] = false;
+                        }
+                        else
+                        {
+                            if (!_activeLights[x, y])
+                            {
+                                _lightLerps[x, y]?.Stop(false);
+
+                                _lightLerps[x, y] = Create(light, light.DiffusePower, 5f);
+                                _lightLerps[x, y].Start();
+                                if (!LightEngine.Lights.Contains(light))
+                                    LightEngine.Lights.Add(light);
+                            }
+                            _activeLights[x, y] = true;
+                        }
+                    }
                 }
         }
 
@@ -283,25 +324,14 @@ namespace Maze.Engine
 
             Objects = new LevelObjectCollection(this);
 
-            var pos = new[]
-            {
-                new Vector3(-0.5f, 0f, -0.5f),
-                new Vector3(-0.5f, 0f, 0.5f),
-                new Vector3(0.5f, 0f, 0.5f),
-                new Vector3(0.5f, 0f, 0.5f),
-                new Vector3(-0.5f, 0f, -0.5f),
-                new Vector3(0.5f, 0f, -0.5f)
-            };
-
-            var buffer = new VertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
-            var data = new CommonVertex[6];
-            for (var i = 0; i < pos.Length; i++)
-                data[i] = new CommonVertex(pos[i], new Vector2(pos[i].X + 0.5f, pos[i].Z + 0.5f), new Vector3(0, 1, 0), new Vector3(0, 0, 1));
-            buffer.SetData(data);
-
             Mesh = new AutoMesh();
 
-            GenerateMaze(10);
+            const int size = 10;
+
+            GenerateMaze(size);
+
+            _lightLerps = new CustomInterpolation<PointLight>[size, size];
+            _activeLights = new bool[size, size];
 
             _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
 
@@ -326,7 +356,7 @@ namespace Maze.Engine
                 WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection,
             });
             (_exit.ShaderState as StandartShaderState).OnlyColor = true;
-            
+
             Objects.Intersect(Maze.Instance.Frustum).Draw();
 
             Mesh.ShaderState.WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection;
@@ -335,7 +365,7 @@ namespace Maze.Engine
             LightEngine.Draw();
         }
 
-        public bool TraverseAutomatically { get; set; } = false;
+        public bool TraverseAutomatically { get; set; } = true;
 
         private (int x, int y)? GetTile(Vector2 position)
         {
@@ -403,12 +433,12 @@ namespace Maze.Engine
         public event EventHandler OutOfBounds;
 
         private bool _fade;
-        public void Update(GameTime gameTime)
+        public bool Update(GameTime gameTime)
         {
             UpdateCameraDirection();
 
             if (LockMovement)
-                return;
+                return false;
 
             if (!TraverseAutomatically)
             {
@@ -447,6 +477,18 @@ namespace Maze.Engine
             }
 
             UpdateLights();
+
+            return false;
+        }
+
+        void IUpdatable.Begin() { }
+        void IUpdatable.End() { }
+
+        public void Dispose()
+        {
+            _exit.Dispose();
+            foreach (var tile in _tiles)
+                tile.Dispose();
         }
     }
 }

@@ -6,6 +6,7 @@ using Maze.Graphics;
 using System.Collections.Generic;
 using static Microsoft.Xna.Framework.MathHelper;
 using Maze.Graphics.Shaders;
+using System;
 
 namespace Maze
 {
@@ -28,6 +29,8 @@ namespace Maze
         public Level Level { get; private set; }
 
         public RenderTargets RenderTargets { get; private set; }
+
+        public UpdatableManager UpdatableManager { get; private set; }
 
         public GameTime GameTime { get; private set; }
 
@@ -56,6 +59,8 @@ namespace Maze
         {
             base.LoadContent();
 
+            UpdatableManager = new UpdatableManager();
+
             GraphicsDevice.DiscardColor = Color.Transparent;
 
             Content.RootDirectory = "Content";
@@ -75,15 +80,21 @@ namespace Maze
             Level = new Level() { LockMovement = true };
             Level.OutOfBounds += GenerateNewLevel;
 
-            void GenerateNewLevel(object sender, System.EventArgs e)
+            void GenerateNewLevel(object sender, EventArgs e)
             {
+                UpdatableManager.Remove(Level);
+                Level.Dispose();
+
                 _showMessage = true;
                 Level = new Level() { LockMovement = true };
                 Level.OutOfBounds += GenerateNewLevel;
 
+                UpdatableManager.Add(Level);
+
                 _fadeOut = true;
                 _hookedFade = GameTime.TotalGameTime.TotalMilliseconds;
             }
+            UpdatableManager.Add(Level);
 
             _vertexBuffer = new VertexBuffer(GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
             _vertexBuffer.SetData(new[]
@@ -133,7 +144,7 @@ namespace Maze
                 _showMessage = false;
             }
 
-            Level.Update(gameTime);
+            UpdatableManager.Update(gameTime);
 
             // LightEngine.Lights[0].Position = Level.CameraPosition;
 

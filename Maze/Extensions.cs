@@ -17,6 +17,13 @@ namespace Maze
         IEnumerable<Polygon> Polygones { get; }
     }
 
+    public interface IUpdatable
+    {
+        void Begin();
+        bool Update(GameTime time);
+        void End();
+    }
+
     public static class Extensions
     {
         private static readonly Random s_random = new Random();

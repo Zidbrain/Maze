@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Maze.Graphics.Shaders;
 using static Maze.Maze;
 using Maze.Engine;
+using System;
 
 namespace Maze.Graphics
 {
@@ -102,7 +103,7 @@ namespace Maze.Graphics
         }
     }
 
-    public class PointLight : Light
+    public class PointLight : Light, IDisposable
     {
         private readonly PointLightShaderData _data = new PointLightShaderData();
         private readonly RenderTarget2D _shadowMap = new RenderTarget2D(Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents, false, 6);
@@ -116,6 +117,7 @@ namespace Maze.Graphics
             Matrix.CreateLookAt(Vector3.Zero, Vector3.Backward, Vector3.Up), // +Z
             Matrix.CreateLookAt(Vector3.Zero, Vector3.Forward, Vector3.Up), // -Z
         };
+        private bool _disposedValue;
 
         public float Radius
         {
@@ -195,5 +197,8 @@ namespace Maze.Graphics
 
             return _shadowMap;
         }
+
+        public void Dispose() =>
+            _shadowMap.Dispose();
     }
 }

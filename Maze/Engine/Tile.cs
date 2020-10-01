@@ -16,7 +16,7 @@ namespace Maze.Engine
         Left = 1 << 3
     }
 
-    public class Tile : LevelObject
+    public class Tile : LevelObject, IDisposable
     {
         private readonly List<Square> _sides;
         private Vector3 _position;
@@ -136,5 +136,8 @@ namespace Maze.Engine
             foreach (var side in _sides)
                 side.Draw(mesh);
         }
+
+        public void Dispose() =>
+            Light.Dispose();
     }
 }
