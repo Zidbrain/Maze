@@ -17,23 +17,23 @@ namespace Maze.Engine
         private bool _stop;
         private bool _setValue;
 
-        public float From { get; private set; }
-        public float To { get; private set; }
+        protected float From { get; set; }
+        protected float To { get; set; }
 
         public TimeSpan Time { get; }
 
         public float Value { get; private set; }
 
-        public bool Active { get; private set; }
+        public bool Active { get; protected set; }
 
         public bool Reverse { get; set; }
 
 
         public RepeatOptions RepeatOptions { get; set; }
 
-        public static Interpolation Start(float from, float to, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
+        public static Interpolation Start(TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
         {
-            var ret = new Interpolation(from, to, time, repeatOptions);
+            var ret = new Interpolation(time, repeatOptions);
             ret.Start();
             return ret;
         }
@@ -41,21 +41,21 @@ namespace Maze.Engine
         public void Start()
         {
             if (!Active)
-                Maze.Instance.UpdatableManager.Add(this);
+                Maze.Instance.UpdateableManager.Add(this);
             else _hook = Maze.Instance.GameTime.TotalGameTime.TotalMilliseconds;
         }
 
         public void Stop(bool setValue = true) =>
             (_stop, _setValue) = (true, setValue);
 
-        public Interpolation(float from, float to, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None) =>
-            (From, To, Time, _totalMilliseconds, RepeatOptions) = (from, to, time, time.TotalMilliseconds, repeatOptions);
+        public Interpolation(TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None) =>
+            (From, To, Time, _totalMilliseconds, RepeatOptions) = (0f, 1f, time, time.TotalMilliseconds, repeatOptions);
 
         public event EventHandler Started;
         public event EventHandler Updated;
         public event EventHandler Stopped;
 
-        void IUpdatable.Begin()
+        protected virtual void Begin()
         {
             _hook = Maze.Instance.GameTime.TotalGameTime.TotalMilliseconds;
             _stop = false;
@@ -68,7 +68,24 @@ namespace Maze.Engine
             Started?.Invoke(this, EventArgs.Empty);
         }
 
-        void IUpdatable.End()
+        protected virtual bool Update(GameTime time)
+        {
+            if (_stop)
+                return true;
+
+            var factor = (float)((time.TotalGameTime.TotalMilliseconds - _hook) / _totalMilliseconds);
+
+            if (factor >= 1f)
+                return true;
+
+            Value = MathHelper.Lerp(From, To, Reverse ? 1f - factor : factor);
+
+            Updated?.Invoke(this, EventArgs.Empty);
+
+            return false;
+        }
+
+        protected virtual void End()
         {
             if (_setValue)
                 Value = To;
@@ -89,21 +106,10 @@ namespace Maze.Engine
             }
         }
 
-        bool IUpdatable.Update(GameTime time)
-        {
-            if (_stop)
-                return true;
+        void IUpdatable.Begin() => Begin();
 
-            var factor = (float)((time.TotalGameTime.TotalMilliseconds - _hook) / _totalMilliseconds);
+        void IUpdatable.End() => End();
 
-            if (factor >= 1f)
-                return true;
-
-            Value = MathHelper.Lerp(From, To, Reverse ? 1f - factor : factor);
-
-            Updated?.Invoke(this, EventArgs.Empty);
-
-            return false;
-        }
+        bool IUpdatable.Update(GameTime time) => Update(time);
     }
 }

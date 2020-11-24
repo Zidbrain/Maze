@@ -117,7 +117,6 @@ namespace Maze.Graphics
             Matrix.CreateLookAt(Vector3.Zero, Vector3.Backward, Vector3.Up), // +Z
             Matrix.CreateLookAt(Vector3.Zero, Vector3.Forward, Vector3.Up), // -Z
         };
-        private bool _disposedValue;
 
         public float Radius
         {
@@ -192,13 +191,17 @@ namespace Maze.Graphics
                 objects.Level.Mesh.Draw();
             }
 
-            objects.SetShaderState(null);
+            objects.SetShaderState(null as ShaderState);
             objects.Level.Mesh.ShaderState = null;
 
             return _shadowMap;
         }
 
-        public void Dispose() =>
+        public void Dispose()
+        {
             _shadowMap.Dispose();
+
+            GC.SuppressFinalize(this);
+        }
     }
 }

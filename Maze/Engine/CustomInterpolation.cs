@@ -11,23 +11,31 @@ namespace Maze.Engine
 
         public Setter<T> Setter { get; set; }
 
-        public CustomInterpolation(T @object, Setter<T> setter, float from, float to, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None) :
-            base(from, to, time, repeatOptions)
-        {
-            (Object, Setter) = (@object, setter);
+        public CustomInterpolation(T @object, Setter<T> setter, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None) :
+            base(time, repeatOptions) => (Object, Setter) = (@object, setter);
 
-            Started += Set;
-            Updated += Set;
-            Stopped += Set;
+        protected override void Begin()
+        {
+            base.Begin();
+            Setter(Object, Value);
         }
 
-
-        private void Set(object sender, EventArgs e) =>
-            Setter(Object, Value);
-
-        public static CustomInterpolation<T> Start(T @object, Setter<T> setter, float from, float to, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
+        protected override void End()
         {
-            var ret = new CustomInterpolation<T>(@object, setter, from, to, time, repeatOptions);
+            base.End();
+            Setter(Object, Value);
+        }
+
+        protected override bool Update(GameTime time)
+        {
+            var ret = base.Update(time);
+            Setter(Object, Value);
+            return ret;
+        }
+
+        public static CustomInterpolation<T> Start(T @object, Setter<T> setter, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
+        {
+            var ret = new CustomInterpolation<T>(@object, setter, time, repeatOptions);
             ret.Start();
             return ret;
         }

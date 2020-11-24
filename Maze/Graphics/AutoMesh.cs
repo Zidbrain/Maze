@@ -2,36 +2,19 @@
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using Maze.Graphics.Shaders;
-using Maze.Engine;
-using System;
 
 namespace Maze.Graphics
 {
-    public sealed class MeshInfo : IEquatable<MeshInfo>
+    public sealed record MeshInfo
     {
-        public Texture2D Texture { get; }
+        public Texture2D Texture { get; init; }
 
-        public Texture2D Normal { get; }
+        public Texture2D Normal { get; init; }
 
-        public VertexBuffer VertexBuffer { get; }
+        public VertexBuffer VertexBuffer { get; init; }
 
         public MeshInfo(Texture2D texture, Texture2D normal, VertexBuffer vertexBuffer) =>
             (Texture, Normal, VertexBuffer) = (texture, normal, vertexBuffer);
-
-        public static bool operator ==(MeshInfo left, MeshInfo right) =>
-            left.Texture == right.Texture && left.Normal == right.Normal && left.VertexBuffer == right.VertexBuffer;
-
-        public static bool operator !=(MeshInfo left, MeshInfo right) =>
-            left.Texture != right.Texture || left.Normal != right.Normal || left.VertexBuffer != right.VertexBuffer;
-
-        public override bool Equals(object obj) =>
-            obj is MeshInfo info && this == info;
-
-        public bool Equals(MeshInfo other) =>
-            this == other;
-
-        public override int GetHashCode() =>
-            Texture.GetHashCode() ^ Normal.GetHashCode() ^ VertexBuffer.GetHashCode();
     }
 
     public class AutoMesh : IDrawable
@@ -67,7 +50,7 @@ namespace Maze.Graphics
 
         public void Draw()
         {
-            foreach (var info in _info)
+            foreach (KeyValuePair<MeshInfo, InstancedQueue> info in _info)
             {
                 if (ShaderState is LevelMeshShaderState meshShader)
                 {

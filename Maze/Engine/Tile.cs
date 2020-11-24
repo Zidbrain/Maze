@@ -137,7 +137,10 @@ namespace Maze.Engine
                 side.Draw(mesh);
         }
 
-        public void Dispose() =>
+        public void Dispose()
+        {
             Light.Dispose();
+            GC.SuppressFinalize(this);
+        }
     }
 }

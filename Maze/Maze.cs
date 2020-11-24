@@ -30,7 +30,7 @@ namespace Maze
 
         public RenderTargets RenderTargets { get; private set; }
 
-        public UpdatableManager UpdatableManager { get; private set; }
+        public UpdatableManager UpdateableManager { get; private set; }
 
         public GameTime GameTime { get; private set; }
 
@@ -59,7 +59,9 @@ namespace Maze
         {
             base.LoadContent();
 
-            UpdatableManager = new UpdatableManager();
+            GameTime = new GameTime();
+
+            UpdateableManager = new UpdatableManager();
 
             GraphicsDevice.DiscardColor = Color.Transparent;
 
@@ -82,19 +84,19 @@ namespace Maze
 
             void GenerateNewLevel(object sender, EventArgs e)
             {
-                UpdatableManager.Remove(Level);
+                UpdateableManager.Remove(Level);
                 Level.Dispose();
 
                 _showMessage = true;
-                Level = new Level() { LockMovement = true };
+                Level = new Level() { LockMovement = true, };
                 Level.OutOfBounds += GenerateNewLevel;
 
-                UpdatableManager.Add(Level);
+                UpdateableManager.Add(Level);
 
                 _fadeOut = true;
                 _hookedFade = GameTime.TotalGameTime.TotalMilliseconds;
             }
-            UpdatableManager.Add(Level);
+            UpdateableManager.Add(Level);
 
             _vertexBuffer = new VertexBuffer(GraphicsDevice, typeof(VertexPositionTexture), 6, BufferUsage.WriteOnly);
             _vertexBuffer.SetData(new[]
@@ -144,7 +146,7 @@ namespace Maze
                 _showMessage = false;
             }
 
-            UpdatableManager.Update(gameTime);
+            UpdateableManager.Update(gameTime);
 
             // LightEngine.Lights[0].Position = Level.CameraPosition;
 

@@ -73,6 +73,12 @@ namespace Maze.Engine
                     levelObject.Draw();
         }
 
+        public void SetShaderState(Func<ShaderState> stateGenerator)
+        {
+            foreach (var @object in this)
+                @object.ShaderState = stateGenerator?.Invoke();
+        }
+
         public void SetShaderState(ShaderState state)
         {
             foreach (var @object in this)

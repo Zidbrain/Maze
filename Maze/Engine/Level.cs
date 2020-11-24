@@ -266,58 +266,6 @@ namespace Maze.Engine
 
         public LevelTextures Textures { get; }
 
-        private readonly CustomInterpolation<PointLight>[,] _lightLerps;
-        private readonly bool[,] _activeLights;
-
-        private void UpdateLights()
-        {
-            static CustomInterpolation<PointLight> Create(PointLight light, float from, float to) =>
-                new CustomInterpolation<PointLight>(light,
-                    (obj, value) =>
-                    {
-                        obj.DiffusePower = value;
-                        obj.SpecularPower = value / 5f * 12f;
-                    },
-                    from, to, MathF.Abs(to - from) / 5f * TimeSpan.FromSeconds(0.25d));
-
-            void Remove(object light, EventArgs e) =>
-                LightEngine.Lights.Remove((light as CustomInterpolation<PointLight>).Object);
-
-            for (var x = 0; x < _tiles.GetLength(0); x++)
-                for (var y = 0; y < _tiles.GetLength(1); y++)
-                {
-                    if (_tiles[x, y].LightEnabled)
-                    {
-                        var light = _tiles[x, y].Light;
-                        if (Vector3.Distance(light.Position, CameraPosition) >= 1.5f)
-                        {
-                            if (_activeLights[x, y])
-                            {
-                                _lightLerps[x, y]?.Stop(false);
-
-                                _lightLerps[x, y] = Create(light, light.DiffusePower, 0f);
-                                _lightLerps[x, y].Stopped += Remove;
-                                _lightLerps[x, y].Start();
-                            }
-                            _activeLights[x, y] = false;
-                        }
-                        else
-                        {
-                            if (!_activeLights[x, y])
-                            {
-                                _lightLerps[x, y]?.Stop(false);
-
-                                _lightLerps[x, y] = Create(light, light.DiffusePower, 5f);
-                                _lightLerps[x, y].Start();
-                                if (!LightEngine.Lights.Contains(light))
-                                    LightEngine.Lights.Add(light);
-                            }
-                            _activeLights[x, y] = true;
-                        }
-                    }
-                }
-        }
-
         public Level()
         {
             Textures = new LevelTextures();
@@ -330,8 +278,20 @@ namespace Maze.Engine
 
             GenerateMaze(size);
 
-            _lightLerps = new CustomInterpolation<PointLight>[size, size];
-            _activeLights = new bool[size, size];
+            new CollectionInterpolation<Tile>(_tiles.ToIEnumerable<Tile>(),
+                (tile, value) =>
+                {
+                    tile.Light.DiffusePower = value * 5f;
+                    tile.Light.SpecularPower = value * 12f;
+                },
+                tile =>
+                    Vector3.Distance(CameraPosition, tile.Position) < 1.5f,
+                TimeSpan.FromSeconds(0.25d))
+            {
+                SkipCondition = tile => !tile.LightEnabled,
+                OnEnter = tile => { if (!LightEngine.Lights.Contains(tile.Light)) LightEngine.Lights.Add(tile.Light); },
+                OnExit = tile => LightEngine.Lights.Remove(tile.Light)
+            }.Start();
 
             _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
 
@@ -351,7 +311,7 @@ namespace Maze.Engine
 
         public void Draw()
         {
-            Objects.SetShaderState(new StandartShaderState
+            Objects.SetShaderState(() => new StandartShaderState
             {
                 WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection,
             });
@@ -365,7 +325,7 @@ namespace Maze.Engine
             LightEngine.Draw();
         }
 
-        public bool TraverseAutomatically { get; set; } = true;
+        public bool TraverseAutomatically { get; set; } = false;
 
         private (int x, int y)? GetTile(Vector2 position)
         {
@@ -389,17 +349,15 @@ namespace Maze.Engine
 
         private void CalculateNewDirection()
         {
-            static (int x, int y) GetOffsetDirection(int x, int y, int direction)
-            {
-                return direction switch
+            static (int x, int y) GetOffsetDirection(int x, int y, int direction) =>
+                direction switch
                 {
                     0 => (x, y + 1),
                     1 => (x + 1, y),
                     2 => (x, y - 1),
                     3 => (x - 1, y),
-                    _ => throw new ArgumentException(nameof(direction)),
+                    _ => throw new ArgumentException($"Wrong {nameof(direction)}"),
                 };
-            }
 
             (var x, var y) = _newPosition;
 
@@ -476,8 +434,6 @@ namespace Maze.Engine
                 }
             }
 
-            UpdateLights();
-
             return false;
         }
 
@@ -489,6 +445,8 @@ namespace Maze.Engine
             _exit.Dispose();
             foreach (var tile in _tiles)
                 tile.Dispose();
+
+            GC.SuppressFinalize(this);
         }
     }
 }
