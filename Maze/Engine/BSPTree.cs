@@ -86,7 +86,7 @@ namespace Maze.Engine
     {
         private readonly BSPTreeNode _start;
 
-        public BSPTree(IEnumerable<ICollidable> objects)
+        public BSPTree(IEnumerable<ICollideable> objects)
         {
             var compile = new List<Polygon>();
             foreach (var @object in objects)

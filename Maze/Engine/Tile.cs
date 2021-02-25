@@ -16,7 +16,7 @@ namespace Maze.Engine
         Left = 1 << 3
     }
 
-    public class Tile : LevelObject, IDisposable
+    public class Tile : CollideableLevelObject, IDisposable
     {
         private readonly List<Square> _sides;
         private Vector3 _position;
@@ -112,6 +112,8 @@ namespace Maze.Engine
                 Position = new Vector3(0f, size / 2f - 0.1f, 0f)
             };
         }
+
+        public override void Update(GameTime time) { }
 
         public override bool Intersects(BoundingFrustum frustum)
         {

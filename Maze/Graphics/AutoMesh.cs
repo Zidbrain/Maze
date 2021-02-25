@@ -5,16 +5,13 @@ using Maze.Graphics.Shaders;
 
 namespace Maze.Graphics
 {
-    public sealed record MeshInfo
+    public sealed record MeshInfo(Texture2D Texture, Texture2D Normal, VertexBuffer VertexBuffer)
     {
-        public Texture2D Texture { get; init; }
+        public Texture2D Texture { get; init; } = Texture;
 
-        public Texture2D Normal { get; init; }
+        public Texture2D Normal { get; init; } = Normal;
 
-        public VertexBuffer VertexBuffer { get; init; }
-
-        public MeshInfo(Texture2D texture, Texture2D normal, VertexBuffer vertexBuffer) =>
-            (Texture, Normal, VertexBuffer) = (texture, normal, vertexBuffer);
+        public VertexBuffer VertexBuffer { get; init; } = VertexBuffer;
     }
 
     public class AutoMesh : IDrawable

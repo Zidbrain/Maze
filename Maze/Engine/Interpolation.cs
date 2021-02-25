@@ -10,7 +10,7 @@ namespace Maze.Engine
         Cycle
     }
 
-    public class Interpolation : IUpdatable
+    public class Interpolation : IUpdateable
     {
         private double _hook;
         private readonly double _totalMilliseconds;
@@ -101,15 +101,15 @@ namespace Maze.Engine
                     (From, To) = (To, From);
                     goto case RepeatOptions.Jump;
                 case RepeatOptions.Jump:
-                    Start();
+                    Maze.Instance.UpdateableManager.Add(this);
                     break;
             }
         }
 
-        void IUpdatable.Begin() => Begin();
+        void IUpdateable.Begin() => Begin();
 
-        void IUpdatable.End() => End();
+        void IUpdateable.End() => End();
 
-        bool IUpdatable.Update(GameTime time) => Update(time);
+        bool IUpdateable.Update(GameTime time) => Update(time);
     }
 }

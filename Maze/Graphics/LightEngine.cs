@@ -5,32 +5,149 @@ using Maze.Graphics.Shaders;
 using static Maze.Maze;
 using Maze.Engine;
 using System;
+using System.Collections;
 
 namespace Maze.Graphics
 {
-    public abstract class Light
+    public class LightCollection : ICollection<Light>
     {
-        public virtual Color Color { get; set; }
+        private int _count;
+        private readonly Dictionary<Type, (List<Light> lights, LightShaderState shaderState)> _typedLists = new Dictionary<Type, (List<Light> lights, LightShaderState shaderState)>();
 
-        public virtual Vector3 Position { get; set; }
+        public int Count => _count;
 
-        public bool ShadowsEnabled { get; set; } = true;
+        public bool IsReadOnly { get; } = false;
 
-        public abstract PointLightShaderData GetData();
+        public void AddLightType<TLight>(LightShaderState shaderState) where TLight : Light
+        {
+            if (!_typedLists.ContainsKey(typeof(TLight)))
+                _typedLists.Add(typeof(TLight), (new List<Light>(), shaderState));
+        }
+        public void ChangeShaderState<TLight>(LightShaderState shaderState) where TLight : Light
+        {
+            var tuple = _typedLists[typeof(TLight)];
+            _typedLists[typeof(TLight)] = (tuple.lights, shaderState);
+        }
 
-        public abstract Texture2D GetShadows(out Matrix[] lightViewMatrices);
+        public IEnumerable<(List<Light> lights, LightShaderState shaderState)> GetAllTypesData() =>
+            _typedLists.Values;
+
+        public void Add(Light item)
+        {
+            try
+            {
+                _typedLists[item.GetType()].lights.Add(item);
+                _count++;
+            }
+            catch (KeyNotFoundException)
+            {
+                throw new ArgumentException($"This collection cannot store lights of this type: {item.GetType()}. Use {typeof(LightCollection).GetMethod("AddLightType")} first.");
+            }
+        }
+
+        public void Clear()
+        {
+            _count = 0;
+
+            foreach (var (lights, _) in _typedLists.Values)
+                lights.Clear();
+        }
+
+        public bool Contains(Light item)
+        {
+            try
+            {
+                return _typedLists[item.GetType()].lights.Contains(item);
+            }
+            catch (KeyNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        public void CopyTo(Light[] array, int arrayIndex)
+        {
+            var offset = 0;
+            foreach (var (lights, _) in _typedLists.Values)
+            {
+                lights.CopyTo(array, arrayIndex + offset);
+                offset += lights.Count;
+            }
+        }
+
+        public struct Enumerator : IEnumerator<Light>
+        {
+            private Dictionary<Type, (List<Light> lights, LightShaderState)>.ValueCollection.Enumerator _enumerator;
+            private List<Light>.Enumerator _listEnumerator;
+
+            public Enumerator(LightCollection collection)
+            {
+                _enumerator = collection._typedLists.Values.GetEnumerator();
+                if (!_enumerator.MoveNext())
+                    _listEnumerator = new List<Light>.Enumerator();
+                _listEnumerator = _enumerator.Current.lights.GetEnumerator();
+            }
+
+            public Light Current => _listEnumerator.Current;
+
+            object IEnumerator.Current => Current;
+
+            public void Dispose() { }
+
+            public bool MoveNext()
+            {
+                if (!_listEnumerator.MoveNext())
+                {
+                    if (!_enumerator.MoveNext())
+                        return false;
+                    else
+                        _listEnumerator = _enumerator.Current.lights.GetEnumerator();
+                }
+
+                return true;
+            }
+
+            public void Reset()
+            {
+                (_enumerator as IEnumerator).Reset();
+                if (!_enumerator.MoveNext())
+                    _listEnumerator = new List<Light>.Enumerator();
+                _listEnumerator = _enumerator.Current.lights.GetEnumerator();
+            }
+        }
+
+        public IEnumerator<Light> GetEnumerator() =>
+            new Enumerator(this);
+
+        public bool Remove(Light item)
+        {
+            try
+            {
+                if (_typedLists[item.GetType()].lights.Remove(item))
+                {
+                    _count--;
+                    return true;
+                }
+                return false;
+            }
+            catch (KeyNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public class LightEngine : IDrawable
     {
         private readonly GammaShaderState _gamma;
-        private readonly PointLightShaderState _lighting;
         private readonly ShadowMapShaderState _shadowState;
         private readonly RenderTarget2D _shadowMaps;
 
         private readonly Tile _box;
 
-        public List<Light> Lights { get; } = new List<Light>();
+        public LightCollection Lights { get; } = new LightCollection();
 
         public const int LightBatchCount = 5;
 
@@ -40,12 +157,23 @@ namespace Maze.Graphics
             set => _gamma.MaskColor = value;
         }
 
+        public void AddLightType<TLight>(LightShaderState shaderState) where TLight : Light
+        {
+            shaderState.ShadowMaps = _shadowMaps;
+            Lights.AddLightType<TLight>(shaderState);
+        }
+
+        public void ChangeShaderSate<TLight>(LightShaderState shaderState) where TLight : Light =>
+            Lights.ChangeShaderState<TLight>(shaderState);
+
         public LightEngine(Level level)
         {
             _shadowMaps = new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 0, RenderTargetUsage.PreserveContents, false, LightBatchCount);
 
             _gamma = new GammaShaderState(Instance.RenderTargets.Color);
-            _lighting = new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position) { ShadowMaps = _shadowMaps };
+
+            AddLightType<PointLight>(new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
+
             _shadowState = new ShadowMapShaderState(Instance.RenderTargets.Position);
 
             _box = new Tile(level, 0.1f, Direction.None)
@@ -55,10 +183,35 @@ namespace Maze.Graphics
             };
         }
 
+        private void DrawLightSpecific(List<Light> lights, LightShaderState shaderState, Texture2D[] depthMaps, Matrix[][] lightViewMatrices)
+        {
+            shaderState.CameraPosition = Instance.Level.CameraPosition;
+
+            for (var i = 0; i <= lights.Count / LightBatchCount; i++)
+            {
+                shaderState.LightingData.Fill(null);
+                for (var j = i * LightBatchCount; j < (i + 1) * LightBatchCount && j < lights.Count; j++)
+                {
+                    var data = lights[j];
+                    shaderState.LightingData[j - i * LightBatchCount] = data;
+
+                    _shadowState.LightPosition = data.Position;
+                    _shadowState.DepthMap = depthMaps[j];
+                    _shadowState.LightViewMatrices = lightViewMatrices[j];
+
+                    Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
+
+                    if (lights[j].ShadowsEnabled)
+                        Instance.DrawQuad(_shadowState);
+                }
+
+                Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
+                Instance.DrawQuad(shaderState);
+            }
+        }
+
         public void Draw()
         {
-            _lighting.CameraPosition = Instance.Level.CameraPosition;
-
             Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
             Instance.DrawQuad(_gamma);
@@ -69,139 +222,23 @@ namespace Maze.Graphics
 
             var depthMaps = new Texture2D[Lights.Count];
             var matrices = new Matrix[Lights.Count][];
-            for (int i = 0; i < Lights.Count; i++)
-                if (Lights[i].ShadowsEnabled)
-                    depthMaps[i] = Lights[i].GetShadows(out matrices[i]);
+
+            var i = 0;
+            foreach (var light in Lights)
+            {
+                if (light.ShadowsEnabled)
+                    depthMaps[i] = light.GetShadows(out matrices[i]);
+                i++;
+            }
 
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
 
             _shadowState.Position = Instance.RenderTargets.Position;
 
-            for (var i = 0; i <= Lights.Count / LightBatchCount; i++)
-            {
-                _lighting.LightingData.Clear();
-                for (var j = i * LightBatchCount; j < i * LightBatchCount + 5 && j < Lights.Count; j++)
-                {
-                    var data = Lights[j].GetData();
-                    _lighting.LightingData.Add(data);
-
-                    _shadowState.LightPosition = data.LightPosition;
-                    _shadowState.DepthMap = depthMaps[j];
-                    _shadowState.LightViewMatrices = matrices[j];
-
-                    Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
-
-                    if (Lights[j].ShadowsEnabled)
-                        Instance.DrawQuad(_shadowState);
-                }
-
-                Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
-                Instance.DrawQuad(_lighting);
-            }
+            foreach (var (lights, shaderState) in Lights.GetAllTypesData())
+                DrawLightSpecific(lights, shaderState, depthMaps, matrices);
 
             Instance.Level.Objects.Remove(_box);
-        }
-    }
-
-    public class PointLight : Light, IDisposable
-    {
-        private readonly PointLightShaderData _data = new PointLightShaderData();
-        private readonly RenderTarget2D _shadowMap = new RenderTarget2D(Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents, false, 6);
-
-        private static readonly Matrix[] s_views = new[]
-        {
-            Matrix.CreateLookAt(Vector3.Zero, Vector3.Right, Vector3.Up), // +X
-            Matrix.CreateLookAt(Vector3.Zero, Vector3.Left, Vector3.Up), // -X
-            Matrix.CreateScale(-1f, 1f, 1f) * Matrix.CreateLookAt(Vector3.Zero, Vector3.Up, Vector3.Forward), // +Y
-            Matrix.CreateScale(-1f, 1f, 1f) * Matrix.CreateLookAt(Vector3.Zero, Vector3.Down, Vector3.Backward), // -Y
-            Matrix.CreateLookAt(Vector3.Zero, Vector3.Backward, Vector3.Up), // +Z
-            Matrix.CreateLookAt(Vector3.Zero, Vector3.Forward, Vector3.Up), // -Z
-        };
-
-        public float Radius
-        {
-            get => _data.Radius;
-            set => _data.Radius = value;
-        }
-
-        public float DiffusePower
-        {
-            get => _data.DiffusePower;
-            set => _data.DiffusePower = value;
-        }
-
-        public float Hardness
-        {
-            get => _data.Hardness;
-            set => _data.Hardness = value;
-        }
-
-        public float SpecularHardness
-        {
-            get => _data.SpecularHardness;
-            set => _data.SpecularHardness = value;
-        }
-
-        public float SpecularPower
-        {
-            get => _data.SpecularPower;
-            set => _data.SpecularPower = value;
-        }
-
-        public override Color Color
-        {
-            get => _data.LightColor;
-            set => _data.LightColor = value;
-        }
-
-        public override Vector3 Position
-        {
-            get => _data.LightPosition;
-            set => _data.LightPosition = value;
-        }
-
-        public override PointLightShaderData GetData() =>
-            _data;
-
-        public override Texture2D GetShadows(out Matrix[] lightViewMatrices)
-        {
-            var gd = Instance.GraphicsDevice;
-
-            lightViewMatrices = new Matrix[6];
-
-            var world = Matrix.CreateWorld(-Position, Vector3.Forward, Vector3.Up);
-            var proj = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(91f), 1f, 0.01f, Radius);
-
-            var objects = Instance.Level.Objects.Intersect(new BoundingSphere(Position, Radius));
-
-            for (int i = 0; i < 6; i++)
-            {
-                var wvp = world * s_views[i] * proj;
-                lightViewMatrices[i] = wvp;
-
-                var sideObjects = objects.Intersect(new BoundingFrustum(wvp));
-
-                sideObjects.SetShaderState(new WriteDepthShaderState() { WorldViewProjection = wvp, LightPosition = Position });
-                objects.Level.Mesh.ShaderState = new WriteDepthInstancedShaderState() { WorldViewProjection = wvp , LightPosition = Position };
-
-                gd.SetRenderTarget(_shadowMap, i);
-                gd.Clear(ClearOptions.DepthBuffer | ClearOptions.Target, Color.Black, 1f, 0);
-
-                sideObjects.Draw();
-                objects.Level.Mesh.Draw();
-            }
-
-            objects.SetShaderState(null as ShaderState);
-            objects.Level.Mesh.ShaderState = null;
-
-            return _shadowMap;
-        }
-
-        public void Dispose()
-        {
-            _shadowMap.Dispose();
-
-            GC.SuppressFinalize(this);
         }
     }
 }

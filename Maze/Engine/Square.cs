@@ -6,7 +6,7 @@ using Maze.Graphics;
 
 namespace Maze.Engine
 {
-    public class Square : IDrawable, ICollidable
+    public class Square : IDrawable, ICollideable
     {
         private static readonly Vector3[] s_pos =
         {
@@ -30,7 +30,7 @@ namespace Maze.Engine
             s_buffer.SetData(vertexes);
         }
 
-        private readonly Matrix _transform;
+        public Matrix Transform { get; set; }
 
         public Vector3 Position { get; set; }
         public Vector2 Size { get; set; } = Vector2.One;
@@ -50,7 +50,7 @@ namespace Maze.Engine
                 {
                     var buf = new Vector3[3];
                     for (var j = 0; j < 3; j++)
-                        buf[j] = Vector3.Transform(s_pos[i * 3 + j], Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
+                        buf[j] = Vector3.Transform(s_pos[i * 3 + j], Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position));
 
                     ret[i] = new Polygon(buf);
                 }
@@ -63,7 +63,7 @@ namespace Maze.Engine
 
         public Square(Matrix basis, Texture2D texture, Texture2D normal)
         {
-            _transform = basis;
+            Transform = basis;
             Texture = texture;
             Normal = normal;
 
@@ -76,7 +76,7 @@ namespace Maze.Engine
                 ShaderState = new StandartShaderState();
 
             if (ShaderState is TransformShaderState state)
-                state.Transform = Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position);
+                state.Transform = Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position);
 
             if (ShaderState is StandartShaderState standartState)
             {
@@ -89,6 +89,6 @@ namespace Maze.Engine
         }
 
         public void Draw(AutoMesh mesh) =>
-            mesh.Add(_info, Matrix.CreateScale(Size.X, 1f, Size.Y) * _transform * Matrix.CreateTranslation(Position));
+            mesh.Add(_info, Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position));
     }
 }

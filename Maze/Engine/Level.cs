@@ -46,7 +46,7 @@ namespace Maze.Engine
         }
     }
 
-    public class Level : IDrawable, IUpdatable, IDisposable
+    public class Level : IDrawable, IUpdateable, IDisposable
     {
         private Tile[,] _tiles;
         private Tile _exit;
@@ -60,18 +60,29 @@ namespace Maze.Engine
 
         public LightEngine LightEngine { get; }
 
-        public Vector3 CameraDirection { get; private set; }
+        public Vector3 CameraDirection { get; private set; } = Vector3.Forward;
         public Vector3 CameraPosition { get; private set; }
-        public Vector3 CameraUp { get; private set; }
+        public Vector3 CameraUp { get; private set; } = Vector3.Up;
+
+        public float CameraRoll { get; set; } = 0f;
 
         private void UpdateCameraDirection()
         {
             if (Maze.Instance.IsActive)
             {
                 var dif = (Mouse.GetState().Position - new Point(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2)).ToVector2() / 750f;
+                Mouse.SetPosition(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2);
+                if (dif == Vector2.Zero)
+                    return;
+
+                var cos = MathF.Cos(CameraRoll);
+                var sin = MathF.Sin(CameraRoll);
+
+                dif = new Vector2(dif.X * cos + dif.Y * sin, -dif.X * sin + cos * dif.Y);
+
                 _yawpitch -= dif;
 
-                var transform = Matrix.CreateFromYawPitchRoll(_yawpitch.X, _yawpitch.Y, 0f);
+                var transform = Matrix.CreateFromYawPitchRoll(_yawpitch.X, _yawpitch.Y, CameraRoll);
                 CameraDirection = Vector3.Transform(Vector3.Forward, transform);
                 CameraUp = Vector3.Transform(Vector3.Up, transform);
 
@@ -79,8 +90,6 @@ namespace Maze.Engine
                     _yawpitch.Y = PiOver2;
                 else if (_yawpitch.Y <= -PiOver2)
                     _yawpitch.Y = -PiOver2;
-
-                Mouse.SetPosition(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2);
             }
         }
 
@@ -94,7 +103,7 @@ namespace Maze.Engine
             var speed = 0.05f * (float)gameTime.ElapsedGameTime.TotalMilliseconds / (1000f / 60f);
 
             var forward = CameraDirection.XZ();
-            var right = Vector3.Transform(Vector3.Forward, Matrix.CreateFromYawPitchRoll(_yawpitch.X - PiOver2, 0f, 0f)).XZ();
+            var right = Vector3.Cross(CameraDirection, CameraUp).XZ();
 
             var vector = Vector3.Zero;
             foreach (var key in Keyboard.GetState().GetPressedKeys())
@@ -293,7 +302,17 @@ namespace Maze.Engine
                 OnExit = tile => LightEngine.Lights.Remove(tile.Light)
             }.Start();
 
-            _tree = new BSPTree(_tiles.ToIEnumerable<ICollidable>());
+            foreach (var tile in _tiles)
+                Objects.Add(tile);
+            Objects.Add(_exit);
+
+            var collideables = new List<ICollideable>();
+            foreach (var @object in Objects)
+                if (@object is ICollideable collideable)
+                    if (collideable is not CollideableLevelObject obj || obj.EnableCollision)
+                        collideables.Add(collideable);
+
+            _tree = new BSPTree(collideables);
 
             CameraPosition = new Vector3(0f, -0f, 0f);
 
@@ -304,25 +323,39 @@ namespace Maze.Engine
                 AmbientColor = new Color(new Vector4(new Vector3(0.2f), 1f))
             };
 
-            foreach (var tile in _tiles)
-                Objects.Add(tile);
-            Objects.Add(_exit);
+            _sprite = new Sprite(this, new Vector2(0.2f, 0.2f))
+            {
+                Position = new Vector3(0f, -0.4f, 0f)
+            };
+            //Objects.Add(_sprite);
+
+            CustomInterpolation<Sprite>.Start(_sprite, static (sprite, t) =>
+                sprite.Position = new Vector3(0f, -0.27f - 0.05f * (MathF.Sin((t - 0.5f) * MathF.PI) + 1f), 0f),
+                TimeSpan.FromSeconds(0.75d), RepeatOptions.Cycle);
         }
+
+        private Sprite _sprite;
 
         public void Draw()
         {
-            Objects.SetShaderState(() => new StandartShaderState
+            Objects.SetShaderState(static () => new StandartShaderState
             {
                 WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection,
             });
             (_exit.ShaderState as StandartShaderState).OnlyColor = true;
 
-            Objects.Intersect(Maze.Instance.Frustum).Draw();
+            var objects = Objects.Intersect(Maze.Instance.Frustum);
+            objects.Draw();
 
             Mesh.ShaderState.WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection;
             Mesh.Draw();
 
             LightEngine.Draw();
+            _sprite.Update(Maze.Instance.GameTime);
+            _sprite.ShaderState = new StandartShaderState { WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection };
+            _sprite.Draw();
+
+            Maze.Instance.Present();
         }
 
         public bool TraverseAutomatically { get; set; } = false;
@@ -395,6 +428,8 @@ namespace Maze.Engine
         {
             UpdateCameraDirection();
 
+            Objects.Update(gameTime);
+
             if (LockMovement)
                 return false;
 
@@ -437,8 +472,8 @@ namespace Maze.Engine
             return false;
         }
 
-        void IUpdatable.Begin() { }
-        void IUpdatable.End() { }
+        void IUpdateable.Begin() { }
+        void IUpdateable.End() { }
 
         public void Dispose()
         {

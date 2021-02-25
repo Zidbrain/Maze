@@ -4,54 +4,95 @@ using System.Collections.Generic;
 
 namespace Maze.Graphics.Shaders
 {
-    public class PointLightShaderState : DefferedShaderState
+    public abstract class LightShaderState : DefferedShaderState
     {
-        public PointLightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors) =>
+        protected LightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors) =>
             (Normal, Position) = (normals, positions);
 
-        public List<PointLightShaderData> LightingData { get; set; } = new List<PointLightShaderData>(LightEngine.LightBatchCount);
-
-        public Vector3 CameraPosition { get; set; }
-
-        public Texture2D ShadowMaps { get; set; }
+        public override abstract EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
 
         public override void Apply(EffectParameterCollection parameters)
         {
             base.Apply(parameters);
 
-            parameters["_lightsCount"].SetValue(LightingData.Count);
+            var count = LightingData.Length;
+            for (int i = 0; i < LightingData.Length; i++)
+                if (LightingData[i] is null)
+                {
+                    count = i;
+                    break;
+                }
+
+            parameters["_lightsCount"].SetValue(count);
             parameters["_cameraPosition"].SetValue(CameraPosition);
             parameters["_shadowMaps"].SetValue(ShadowMaps);
 
-            var positions = new Vector3[LightingData.Count];
-            var colors = new Vector4[LightingData.Count];
-            var radiuses = new float[LightingData.Count];
-            var powers = new float[LightingData.Count];
-            var hardnesses = new float[LightingData.Count];
-            var specularHardnesses = new float[LightingData.Count];
-            var specularPowers = new float[LightingData.Count];
-            var shadowsEnabled = new int[LightingData.Count];
+            var positions = new Vector3[count];
+            var shadowsEnabled = new int[count];
 
-            for (int i = 0; i < LightingData.Count; i++)
+            for (int i = 0; i < count; i++)
             {
-                positions[i] = LightingData[i].LightPosition;
-                colors[i] = LightingData[i].LightColor.ToVector4();
+                positions[i] = LightingData[i].Position;
+                shadowsEnabled[i] = System.Convert.ToInt32(LightingData[i].ShadowsEnabled);
+            }
+
+            parameters["_lightingPosition"].SetValue(positions);
+            parameters["_shadowsEnabled"].SetValue(shadowsEnabled);
+
+            SetParameters(parameters, count);
+        }
+
+        public abstract Light[] LightingData { get; }
+
+        public Vector3 CameraPosition { get; set; }
+
+        public Texture2D ShadowMaps { get; set; }
+
+        /// <summary>
+        /// Set the parameters of a <see cref="Light"/> to a shader
+        /// </summary>
+        /// <remarks><see cref="LightingData"/> stores <see cref="Light"/>s which parameters need to be passed down to a shader</remarks>
+        /// <param name="parameters">Shader parameters.</param>
+        /// <param name="count">Number of non null elements in <see cref="LightingData"/></param>
+        protected abstract void SetParameters(EffectParameterCollection parameters, int count);
+    }
+
+    public abstract class LightShaderState<TLight> : LightShaderState where TLight : Light
+    {
+        protected LightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors, normals, positions) { }
+
+        public sealed override TLight[] LightingData { get; } = new TLight[LightEngine.LightBatchCount];
+    }
+
+    public class PointLightShaderState : LightShaderState<PointLight>
+    {
+        public PointLightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors, normals, positions) { }
+
+        protected override void SetParameters(EffectParameterCollection parameters, int count)
+        {
+            var colors = new Vector4[count];
+            var radiuses = new float[count];
+            var powers = new float[count];
+            var hardnesses = new float[count];
+            var specularHardnesses = new float[count];
+            var specularPowers = new float[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                colors[i] = LightingData[i].Color.ToVector4();
                 radiuses[i] = LightingData[i].Radius;
                 powers[i] = LightingData[i].DiffusePower;
                 hardnesses[i] = LightingData[i].Hardness;
                 specularHardnesses[i] = LightingData[i].SpecularHardness;
                 specularPowers[i] = LightingData[i].SpecularPower;
-                shadowsEnabled[i] = System.Convert.ToInt32(LightingData[i].ShadowsEnabled);
             }
 
-            parameters["_lightingPosition"].SetValue(positions);
             parameters["_lightingColor"].SetValue(colors);
             parameters["_lightingRadius"].SetValue(radiuses);
             parameters["_diffusePower"].SetValue(powers);
             parameters["_hardness"].SetValue(hardnesses);
             parameters["_specularHardness"].SetValue(specularHardnesses);
             parameters["_specularPower"].SetValue(specularPowers);
-            parameters["_shadowsEnabled"].SetValue(shadowsEnabled);
         }
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
@@ -87,24 +128,5 @@ namespace Maze.Graphics.Shaders
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["WriteDepthInstanced"];
-    }
-
-    public class PointLightShaderData
-    {
-        public float Radius { get; set; }
-
-        public Vector3 LightPosition { get; set; }
-
-        public Color LightColor { get; set; } = Color.White;
-
-        public float DiffusePower { get; set; } = 1f;
-
-        public float Hardness { get; set; } = 1f;
-
-        public float SpecularHardness { get; set; } = 1f;
-
-        public float SpecularPower { get; set; } = 1f;
-
-        public bool ShadowsEnabled { get; set; } = true;
     }
 }

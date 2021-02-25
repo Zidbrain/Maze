@@ -30,7 +30,7 @@ namespace Maze
 
         public RenderTargets RenderTargets { get; private set; }
 
-        public UpdatableManager UpdateableManager { get; private set; }
+        public UpdateableManager UpdateableManager { get; private set; }
 
         public GameTime GameTime { get; private set; }
 
@@ -61,7 +61,7 @@ namespace Maze
 
             GameTime = new GameTime();
 
-            UpdateableManager = new UpdatableManager();
+            UpdateableManager = new UpdateableManager();
 
             GraphicsDevice.DiscardColor = Color.Transparent;
 
@@ -118,6 +118,13 @@ namespace Maze
         }
 
         private bool _showMessage = true;
+
+        public void Present()
+        {
+            var rt = GraphicsDevice.GetRenderTargets();
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.SetRenderTargets(rt);
+        }
 
         protected override void Update(GameTime gameTime)
         {

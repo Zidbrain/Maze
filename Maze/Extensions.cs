@@ -12,12 +12,12 @@ namespace Maze
         void Draw();
     }
 
-    public interface ICollidable
+    public interface ICollideable
     {
         IEnumerable<Polygon> Polygones { get; }
     }
 
-    public interface IUpdatable
+    public interface IUpdateable
     {
         void Begin();
         bool Update(GameTime time);
@@ -43,6 +43,14 @@ namespace Maze
             ret.SetData(data);
 
             return ret;
+        }
+
+        public static bool ConatainsType<T, Type>(this IEnumerable<T> ts) where Type : T
+        {
+            foreach (var item in ts)
+                if (item is Type)
+                    return true;
+            return false;
         }
 
         public static Vector3 XZ(this Vector3 value) =>
@@ -96,6 +104,12 @@ namespace Maze
                 array[next] = array[i];
                 array[i] = temp;
             }
+        }
+
+        public static void Fill<T>(this T[] array, T value)
+        {
+            for (int i = 0; i < array.Length; i++)
+                array[i] = value;
         }
 
         public static IEnumerable<T> ToIEnumerable<T>(this Array target)

@@ -9,7 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Maze.Engine
 {
-    public abstract class LevelObject : IDrawable, ICollidable
+    public abstract class LevelObject : IDrawable
     {
         public Level Level { get; }
 
@@ -17,10 +17,10 @@ namespace Maze.Engine
 
         public bool DrawToMesh { get; set; } = true;
 
-        public bool EnableCollision { get; set; } = true;
-
         public LevelObject(Level level) =>
             Level = level;
+
+        public abstract void Update(GameTime time);
 
         public abstract void Draw();
 
@@ -30,8 +30,14 @@ namespace Maze.Engine
 
         public abstract bool Intersects(in BoundingSphere sphere);
 
-        public virtual Vector3 Position { get; set; }
+        public virtual Vector3 Position { get; set; } 
+    }
 
+    public abstract class CollideableLevelObject : LevelObject, ICollideable
+    {
+        public CollideableLevelObject(Level level) : base(level) { }
+
+        public bool EnableCollision { get; set; } = true;
         public abstract IEnumerable<Polygon> Polygones { get; }
     }
 
@@ -39,7 +45,7 @@ namespace Maze.Engine
     {
         public Level Level { get; }
 
-        public LevelObjectCollection(Level level) =>
+        public LevelObjectCollection(Level level) => 
             Level = level;
 
         public LevelObjectCollection Intersect(BoundingFrustum frustrum)
@@ -64,8 +70,14 @@ namespace Maze.Engine
             return ret;
         }
 
-        public void Draw()
+        public void Update(GameTime time)
         {
+            foreach (var obj in Items)
+                obj.Update(time);
+        }
+
+        public void Draw()
+        { 
             foreach (var levelObject in this)
                 if (levelObject.DrawToMesh)
                     levelObject.Draw(Level.Mesh);

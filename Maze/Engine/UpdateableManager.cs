@@ -4,13 +4,13 @@ using Microsoft.Xna.Framework;
 
 namespace Maze.Engine
 {
-    public class UpdatableManager : Collection<IUpdatable>
+    public class UpdateableManager : Collection<IUpdateable>
     {
-        private readonly List<IUpdatable> _deleteList;
-        private readonly List<(int index, IUpdatable item)> _addList;
+        private readonly List<IUpdateable> _deleteList;
+        private readonly List<(int index, IUpdateable item)> _addList;
 
-        public UpdatableManager() =>
-            (_deleteList, _addList) = (new List<IUpdatable>(), new List<(int, IUpdatable)>());
+        public UpdateableManager() =>
+            (_deleteList, _addList) = (new List<IUpdateable>(), new List<(int, IUpdateable)>());
 
         public void Update(GameTime time)
         {
@@ -44,7 +44,7 @@ namespace Maze.Engine
             base.ClearItems();
         }
 
-        protected override void InsertItem(int index, IUpdatable item)
+        protected override void InsertItem(int index, IUpdateable item)
         {
             _addList.Add((index, item));
             item.Begin();
@@ -56,7 +56,7 @@ namespace Maze.Engine
             Items[index].End();
         }
 
-        protected override void SetItem(int index, IUpdatable item)
+        protected override void SetItem(int index, IUpdateable item)
         {
             Items[index].End();
 

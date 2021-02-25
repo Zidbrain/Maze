@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Maze.Engine
 {
-    public class CollectionInterpolation<T> : IUpdatable
+    public class CollectionInterpolation<T> : IUpdateable
     {
         private readonly List<ConditionalInterpolation<T>> _conditionals;
 
@@ -51,19 +51,19 @@ namespace Maze.Engine
 
         public void Stop() => Active = false;
 
-        void IUpdatable.Begin() => Active = true;
+        void IUpdateable.Begin() => Active = true;
 
-        bool IUpdatable.Update(GameTime time)
+        bool IUpdateable.Update(GameTime time)
         {
             foreach (var interpolation in _conditionals)
             {
                 if (!SkipCondition?.Invoke(interpolation.Object) ?? true)
-                    (interpolation as IUpdatable).Update(time);
+                    (interpolation as IUpdateable).Update(time);
             }
 
             return !Active;
         }
 
-        void IUpdatable.End() { }
+        void IUpdateable.End() { }
     }
 }
