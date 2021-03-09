@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Maze.Engine;
 using Microsoft.Xna.Framework.Graphics;
 using Maze.Graphics;
+using static System.MathF;
 
 namespace Maze
 {
@@ -26,7 +27,7 @@ namespace Maze
 
     public static class Extensions
     {
-        private static readonly Random s_random = new Random();
+        private static readonly Random s_random = new();
 
         private static Texture2D s_sample;
         public static Texture2D Sample => s_sample ??= CreateSample(Color.White, Vector2.One);
@@ -54,7 +55,7 @@ namespace Maze
         }
 
         public static Vector3 XZ(this Vector3 value) =>
-            new Vector3(value.X, 0f, value.Z);
+            new(value.X, 0f, value.Z);
 
         public static float Distance(in Vector3 point, in Plane plane) =>
             Math.Abs(SignedDistance(point, plane));
@@ -82,7 +83,7 @@ namespace Maze
             var b = Distance(new Ray(polygon.A, polygon.C - polygon.A), point);
             var c = Distance(new Ray(polygon.B, polygon.C - polygon.B), point);
 
-            return MathF.Min(a, MathF.Min(b, c));
+            return Min(a, Min(b, c));
         }
 
         public static bool IsInsideTriangle(in Vector3 a, in Vector3 b, in Vector3 c, in Vector3 point)
@@ -122,6 +123,15 @@ namespace Maze
             graphicsDevice.SetRenderTargets(renderTargets.Bindings);
 
         public static Vector4 ToVector4(this Plane plane) =>
-            new Vector4(plane.Normal, plane.D);
+            new(plane.Normal, plane.D);
+
+        public static Matrix GetAlignmentMatrix(in Vector3 from, in Vector3 to)
+        {
+            var axis = Vector3.Cross(from, to);
+            if (axis == Vector3.Zero)
+                axis = from;
+            return Matrix.CreateFromAxisAngle(Vector3.Normalize(axis), Acos(Vector3.Dot(from, to) / from.Length() / to.Length()));
+        }
+
     }
 }

@@ -23,13 +23,83 @@ cbuffer LightData : register(b1)
     PARAMETER(int _shadowsEnabled[MAX_LIGHTS]);
 };
 
+    PARAMETER(float _diversionAngle[MAX_LIGHTS]);
+    PARAMETER(float3 _direction[MAX_LIGHTS]);
+    PARAMETER(matrix _directionMatrix[MAX_LIGHTS]);
+
     PARAMETER(float4x4 _lightViewMatrices[6]);
+    PARAMETER(int _lightViewLength);
     PARAMETER(Texture2DArray _lightShadows);
     PARAMETER(float3 _lightPosition);
 
 float sqr(in float value)
 {
     return value * value;
+}
+
+float4 SpotLightPS(in DefferedPixel input) : COLOR
+{
+    float4 color = tex2D(textureSampler, input.TextureCoordinate);
+    float3 position = tex2D(positionSampler, input.TextureCoordinate).rgb;
+    float3 normal = GetNormal(input.TextureCoordinate);
+    
+    [unroll(MAX_LIGHTS)]
+    for (int i = 0; i < _lightsCount; i++)
+    {
+        float shadowValue = _shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1;
+        
+        float3 lightDir = _lightingPosition[i] - position;
+        float dist = length(lightDir);
+        float csa = cos(_diversionAngle[i]);   
+        
+        lightDir /= dist;
+        
+        float3 x0 = mul(float4(position, 1), _directionMatrix[i]).xyz;
+        float3 s = mul(float4(_cameraPosition - position, 1), _directionMatrix[i]).xyz;
+                        
+        float angle = angleCos(_direction[i], -lightDir);
+        bool isIn = false;
+        if (angle > csa && dist <= _lightingRadius[i])
+        {
+            float diffuseValue = saturate(dot(normal, lightDir)) * pow(_diversionAngle[i] - acos(angle), 1 / _hardness[i]) / _diversionAngle[i];
+            float3 halfVector = normalize(lightDir + _cameraPosition - position);
+            float specularValue = pow(saturate(dot(normal, halfVector)), _specularHardness[i]);
+    
+            color.rgb += color.rgb * lerp(diffuseValue * _diffusePower[i] + specularValue * _specularPower[i], float3(0, 0, 0), pow(dist / _lightingRadius[i], _hardness[i])) * _lightingColor[i].rgb * shadowValue;
+            isIn = true;
+        }
+        
+        float a = s.z * s.z - dot(s, s) * csa * csa;
+        float b = x0.z * s.z - dot(x0, s) * csa * csa;
+        float c = x0.z * x0.z - dot(x0, x0) * csa * csa;
+        
+        float d = b * b - a * c;
+        if (d >= 0)
+        {
+            float t1 = (-b + sqrt(d)) / a;
+            float t2 = (-b - sqrt(d)) / a;
+            float3 s1 = x0 + s * t1;
+            float3 s2 = x0 + s * t2;          
+            
+            if ((t1 >= 0 && t1 <= 1 && s1.z < 0 && length(s1) <= _lightingRadius[i]) ||
+                 (t2 >= 0 && t2 <= 1 && s2.z < 0 && length(s2) <= _lightingRadius[i]) || isIn)
+            {
+                float v = abs(t2 - t1);
+                //if (isIn)
+                //    v = max(abs(t1), abs(t2));
+                v = 2 * atan(v) / PI;
+                
+                float value =  pow(v, 1 / _hardness[i]) * _diffusePower[i];
+                
+                //if (isIn)
+                //    value = lerp(value, float3(0, 0, 0), pow(dist / _lightingRadius[i], _hardness[i]));
+                
+                color.rgb += color.rgb * value * _lightingColor[i].rgb * shadowValue;
+            }
+        }
+    }
+    
+    return color;
 }
 
 float4 LightingPS(in DefferedPixel input) : COLOR
@@ -117,13 +187,22 @@ float GetShadowValue(in float3 vecToPixel, in float4 position)
     
     float2 step = float2(1.0 / sizeX, 1.0 / sizeY);
     
-    uint face = GetCubemapFace(vecToPixel);
+    uint face = 0;
+    if (_lightViewLength == 6)
+        face = GetCubemapFace(vecToPixel);
     
     float4 lightViewCoordinates = mul(position, _lightViewMatrices[face]);
+    
+    if (lightViewCoordinates.z < 0)
+        return 1;
+    
     float3 projCoords = lightViewCoordinates.xyz / lightViewCoordinates.w;
     
     float2 uv = float2(0.5 * projCoords.x + 0.5, -0.5 * projCoords.y + 0.5);
-    float depthPixel = projCoords.z;
+    if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1)
+        return 1;
+    
+   float depthPixel = projCoords.z;
     
     float value = 0;
     
@@ -160,5 +239,7 @@ TECHNIQUE(WriteDepthInstanced, WriteShadowVSInstanced, WriteShadow);
 TECHNIQUE(WriteDepth, WriteShadowVSStandart, WriteShadow);
 
 TECHNIQUE(Lighting, RasterizeVS, LightingPS);
+
+TECHNIQUE(Spotlight, RasterizeVS, SpotLightPS);
 
 #endif

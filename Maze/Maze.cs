@@ -41,7 +41,7 @@ namespace Maze
         public float FadeAlpha { get; set; }
 
         public Vector2 ScreenSize =>
-            new Vector2(Window.ClientBounds.Width, Window.ClientBounds.Height);
+            new(Window.ClientBounds.Width, Window.ClientBounds.Height);
 
         public Maze()
         {
@@ -221,7 +221,7 @@ namespace Maze
             base.Draw(gameTime);
         }
 
-        public void DrawVertexes(VertexBuffer buffer, ShaderState shaderState, int start = 0, int primitiveCount = 2)
+        public void DrawVertexes(VertexBuffer buffer, IShaderState shaderState, int start = 0, int primitiveCount = 2)
         {
             if (shaderState is null)
                 Shader.State = Shader.StandartState;
@@ -233,7 +233,7 @@ namespace Maze
             GraphicsDevice.DrawPrimitives(PrimitiveType.TriangleList, start, primitiveCount);
         }
 
-        public void DrawQuad(DefferedShaderState state)
+        public void DrawQuad(IShaderState state)
         {
             DrawVertexes(_vertexBuffer, state);
 

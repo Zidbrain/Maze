@@ -275,6 +275,8 @@ namespace Maze.Engine
 
         public LevelTextures Textures { get; }
 
+        private readonly SpotLight _spotlight;
+
         public Level()
         {
             Textures = new LevelTextures();
@@ -323,21 +325,41 @@ namespace Maze.Engine
                 AmbientColor = new Color(new Vector4(new Vector3(0.2f), 1f))
             };
 
+            _spotlight = new SpotLight(Vector3.Forward, 2f, ToRadians(30f))
+            {
+                DiffusePower = 6,
+                SpecularHardness = 600,
+                SpecularPower = 12,
+                Hardness = 1f,
+                Color = Color.Blue,
+                Position = new Vector3(0f, 0f, 0f)
+            };
+            LightEngine.Lights.Add(_spotlight);
+
             _sprite = new Sprite(this, new Vector2(0.2f, 0.2f))
             {
                 Position = new Vector3(0f, -0.4f, 0f)
             };
-            //Objects.Add(_sprite);
+            Objects.Add(_sprite);
 
             CustomInterpolation<Sprite>.Start(_sprite, static (sprite, t) =>
                 sprite.Position = new Vector3(0f, -0.27f - 0.05f * (MathF.Sin((t - 0.5f) * MathF.PI) + 1f), 0f),
                 TimeSpan.FromSeconds(0.75d), RepeatOptions.Cycle);
+
+            //CustomInterpolation<SpotLight>.Start(_spotlight, static (spotlight, t) =>
+            //{
+            //    spotlight.Direction = new Vector3(MathF.Cos(t * MathF.PI * 2), MathF.Sin(t * MathF.PI * 2), MathF.Sin(t * MathF.PI * 2));
+            //    spotlight.Position = new Vector3(0f, 0.2f * t, 0f);
+            //}, TimeSpan.FromSeconds(2d), RepeatOptions.Jump);
         }
 
-        private Sprite _sprite;
+        private readonly Sprite _sprite;
 
         public void Draw()
         {
+            //_spotlight.Direction = CameraDirection;
+            //_spotlight.Position = CameraPosition;
+
             Objects.SetShaderState(static () => new StandartShaderState
             {
                 WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection,
@@ -351,9 +373,9 @@ namespace Maze.Engine
             Mesh.Draw();
 
             LightEngine.Draw();
-            _sprite.Update(Maze.Instance.GameTime);
-            _sprite.ShaderState = new StandartShaderState { WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection };
-            _sprite.Draw();
+            //_sprite.Update(Maze.Instance.GameTime);
+            //_sprite.ShaderState = new StandartShaderState { WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection };
+            //_sprite.Draw();
 
             Maze.Instance.Present();
         }
@@ -480,6 +502,8 @@ namespace Maze.Engine
             _exit.Dispose();
             foreach (var tile in _tiles)
                 tile.Dispose();
+
+            _spotlight.Dispose();
 
             GC.SuppressFinalize(this);
         }

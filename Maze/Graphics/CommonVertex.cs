@@ -7,7 +7,7 @@ namespace Maze.Graphics
     [StructLayout(LayoutKind.Sequential)]
     public struct CommonVertex : IVertexType
     {
-        private static readonly VertexDeclaration s_vertexDeclaration = new VertexDeclaration(
+        private static readonly VertexDeclaration s_vertexDeclaration = new(
             new[]
             {
                 new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),

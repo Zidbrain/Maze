@@ -36,7 +36,7 @@ namespace Maze.Engine
         public Vector2 Size { get; set; } = Vector2.One;
         public Color Color { get; set; } = Color.White;
 
-        public ShaderState ShaderState { get; set; }
+        public IShaderState ShaderState { get; set; }
 
         public Texture2D Texture { get; set; }
         public Texture2D Normal { get; set; }

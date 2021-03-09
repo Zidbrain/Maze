@@ -9,7 +9,7 @@ namespace Maze.Engine
     {
         private readonly Square _square;
 
-        public override ShaderState ShaderState { get => _square.ShaderState; set => _square.ShaderState = value; }
+        public override IShaderState ShaderState { get => _square.ShaderState; set => _square.ShaderState = value; }
 
         public Vector2 Size { get => _square.Size; set => _square.Size = value; }
 

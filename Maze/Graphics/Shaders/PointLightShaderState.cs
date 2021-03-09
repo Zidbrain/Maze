@@ -4,7 +4,16 @@ using System.Collections.Generic;
 
 namespace Maze.Graphics.Shaders
 {
-    public abstract class LightShaderState : DefferedShaderState
+    public interface ILightShaderState<out TLight> : IShaderState where TLight : Light
+    {
+        TLight[] LightingData { get; }
+
+        Vector3 CameraPosition { get; set; }
+
+        Texture2D ShadowMaps { get; set; }
+    }
+
+    public abstract class LightShaderState<TLight> : DefferedShaderState, ILightShaderState<TLight> where TLight : Light
     {
         protected LightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors) =>
             (Normal, Position) = (normals, positions);
@@ -42,7 +51,7 @@ namespace Maze.Graphics.Shaders
             SetParameters(parameters, count);
         }
 
-        public abstract Light[] LightingData { get; }
+        public TLight[] LightingData { get; } = new TLight[LightEngine.LightBatchCount];
 
         public Vector3 CameraPosition { get; set; }
 
@@ -55,13 +64,6 @@ namespace Maze.Graphics.Shaders
         /// <param name="parameters">Shader parameters.</param>
         /// <param name="count">Number of non null elements in <see cref="LightingData"/></param>
         protected abstract void SetParameters(EffectParameterCollection parameters, int count);
-    }
-
-    public abstract class LightShaderState<TLight> : LightShaderState where TLight : Light
-    {
-        protected LightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors, normals, positions) { }
-
-        public sealed override TLight[] LightingData { get; } = new TLight[LightEngine.LightBatchCount];
     }
 
     public class PointLightShaderState : LightShaderState<PointLight>

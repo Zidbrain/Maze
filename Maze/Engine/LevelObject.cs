@@ -13,7 +13,7 @@ namespace Maze.Engine
     {
         public Level Level { get; }
 
-        public virtual ShaderState ShaderState { get; set; }
+        public virtual IShaderState ShaderState { get; set; }
 
         public bool DrawToMesh { get; set; } = true;
 
@@ -85,13 +85,13 @@ namespace Maze.Engine
                     levelObject.Draw();
         }
 
-        public void SetShaderState(Func<ShaderState> stateGenerator)
+        public void SetShaderState(Func<IShaderState> stateGenerator)
         {
             foreach (var @object in this)
                 @object.ShaderState = stateGenerator?.Invoke();
         }
 
-        public void SetShaderState(ShaderState state)
+        public void SetShaderState(IShaderState state)
         {
             foreach (var @object in this)
                 @object.ShaderState = state;

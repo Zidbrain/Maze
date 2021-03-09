@@ -22,6 +22,7 @@ namespace Maze.Graphics.Shaders
             parameters["_lightShadows"].SetValue(DepthMap);
             parameters["_lightPosition"].SetValue(LightPosition);
             parameters["_lightViewMatrices"].SetValue(LightViewMatrices);
+            parameters["_lightViewLength"].SetValue(LightViewMatrices.Length);
         }
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>

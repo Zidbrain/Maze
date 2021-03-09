@@ -13,6 +13,8 @@
 
 #define PARAMETER(parameterDefinition) uniform extern parameterDefinition
 
+#define PI 3.14159265359
+
 struct Vertex
 {
     float4 Position : SV_Position;
@@ -61,7 +63,8 @@ SamplerState borderSampler = sampler_state
 {
     AddressU = BORDER;
     AddressV = BORDER;
-    BorderColor = 0x00000000;
+    AddressW = BORDER;
+    BorderColor = 0xFFFFFFFF;
 };
 
 sampler2D textureSampler = sampler_state
@@ -113,6 +116,16 @@ float3x3 ConstructTBN(in float3 position, in float3 normal, in float3 tangent, i
     float3 B = cross(N, T);
     
     return float3x3(T, B, N);
+}
+
+float lengthSqr(in float3 vec)
+{
+    return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z;
+}
+
+float angleCos(in float3 vec1, in float3 vec2)
+{
+    return dot(vec1, vec2) / length(vec1) / length(vec2);
 }
 
 #endif

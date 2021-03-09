@@ -8,7 +8,7 @@ namespace Maze.Graphics
 {
     public class PointLight : Light, IDisposable
     {
-        private readonly RenderTarget2D _shadowMap = new RenderTarget2D(Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents, false, 6);
+        private readonly RenderTarget2D _shadowMap = new(Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents, false, 6);
 
         private static readonly Matrix[] s_views = new[]
         {
@@ -58,7 +58,7 @@ namespace Maze.Graphics
                 objects.Level.Mesh.Draw();
             }
 
-            objects.SetShaderState(null as ShaderState);
+            objects.SetShaderState(null as IShaderState);
             objects.Level.Mesh.ShaderState = null;
 
             return _shadowMap;

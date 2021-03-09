@@ -3,9 +3,9 @@ using Microsoft.Xna.Framework;
 
 namespace Maze.Graphics.Shaders
 {
-    public class DefferedShaderState : ShaderState
+    public class DefferedShaderState : IShaderState
     {
-        public override void Apply(EffectParameterCollection parameters)
+        public virtual void Apply(EffectParameterCollection parameters)
         {
             parameters["_texture"].SetValue(Color);
            // parameters["_depthBuffer"].SetValue(Depth);
@@ -31,7 +31,7 @@ namespace Maze.Graphics.Shaders
 
         public DefferedShaderState() { }
 
-        public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
+        public virtual EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["Rasterize"];
     }
 }

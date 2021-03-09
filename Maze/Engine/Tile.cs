@@ -62,8 +62,8 @@ namespace Maze.Engine
             }
         }
 
-        private ShaderState _shaderState;
-        public override ShaderState ShaderState
+        private IShaderState _shaderState;
+        public override IShaderState ShaderState
         {
             get => _shaderState;
             set

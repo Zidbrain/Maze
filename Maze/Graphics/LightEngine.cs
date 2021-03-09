@@ -12,24 +12,24 @@ namespace Maze.Graphics
     public class LightCollection : ICollection<Light>
     {
         private int _count;
-        private readonly Dictionary<Type, (List<Light> lights, LightShaderState shaderState)> _typedLists = new Dictionary<Type, (List<Light> lights, LightShaderState shaderState)>();
+        private readonly Dictionary<Type, (List<Light> lights, ILightShaderState<Light> shaderState)> _typedLists = new();
 
         public int Count => _count;
 
         public bool IsReadOnly { get; } = false;
 
-        public void AddLightType<TLight>(LightShaderState shaderState) where TLight : Light
+        public void AddLightType<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
         {
             if (!_typedLists.ContainsKey(typeof(TLight)))
                 _typedLists.Add(typeof(TLight), (new List<Light>(), shaderState));
         }
-        public void ChangeShaderState<TLight>(LightShaderState shaderState) where TLight : Light
+        public void ChangeShaderState<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
         {
             var tuple = _typedLists[typeof(TLight)];
             _typedLists[typeof(TLight)] = (tuple.lights, shaderState);
         }
 
-        public IEnumerable<(List<Light> lights, LightShaderState shaderState)> GetAllTypesData() =>
+        public IEnumerable<(List<Light> lights, ILightShaderState<Light> shaderState)> GetAllTypesData() =>
             _typedLists.Values;
 
         public void Add(Light item)
@@ -77,7 +77,7 @@ namespace Maze.Graphics
 
         public struct Enumerator : IEnumerator<Light>
         {
-            private Dictionary<Type, (List<Light> lights, LightShaderState)>.ValueCollection.Enumerator _enumerator;
+            private Dictionary<Type, (List<Light> lights, ILightShaderState<Light>)>.ValueCollection.Enumerator _enumerator;
             private List<Light>.Enumerator _listEnumerator;
 
             public Enumerator(LightCollection collection)
@@ -101,7 +101,10 @@ namespace Maze.Graphics
                     if (!_enumerator.MoveNext())
                         return false;
                     else
+                    {
                         _listEnumerator = _enumerator.Current.lights.GetEnumerator();
+                        return MoveNext();
+                    }
                 }
 
                 return true;
@@ -157,14 +160,14 @@ namespace Maze.Graphics
             set => _gamma.MaskColor = value;
         }
 
-        public void AddLightType<TLight>(LightShaderState shaderState) where TLight : Light
+        public void AddLightType<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
         {
             shaderState.ShadowMaps = _shadowMaps;
-            Lights.AddLightType<TLight>(shaderState);
+            Lights.AddLightType(shaderState);
         }
 
-        public void ChangeShaderSate<TLight>(LightShaderState shaderState) where TLight : Light =>
-            Lights.ChangeShaderState<TLight>(shaderState);
+        public void ChangeShaderSate<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light =>
+            Lights.ChangeShaderState(shaderState);
 
         public LightEngine(Level level)
         {
@@ -172,7 +175,8 @@ namespace Maze.Graphics
 
             _gamma = new GammaShaderState(Instance.RenderTargets.Color);
 
-            AddLightType<PointLight>(new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
+            AddLightType(new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
+            AddLightType(new SpotLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
 
             _shadowState = new ShadowMapShaderState(Instance.RenderTargets.Position);
 
@@ -183,7 +187,7 @@ namespace Maze.Graphics
             };
         }
 
-        private void DrawLightSpecific(List<Light> lights, LightShaderState shaderState, Texture2D[] depthMaps, Matrix[][] lightViewMatrices)
+        private void DrawLightSpecific(List<Light> lights, ILightShaderState<Light> shaderState, Texture2D[] depthMaps, Matrix[][] lightViewMatrices, int start)
         {
             shaderState.CameraPosition = Instance.Level.CameraPosition;
 
@@ -196,8 +200,8 @@ namespace Maze.Graphics
                     shaderState.LightingData[j - i * LightBatchCount] = data;
 
                     _shadowState.LightPosition = data.Position;
-                    _shadowState.DepthMap = depthMaps[j];
-                    _shadowState.LightViewMatrices = lightViewMatrices[j];
+                    _shadowState.DepthMap = depthMaps[start + j];
+                    _shadowState.LightViewMatrices = lightViewMatrices[start + j];
 
                     Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
 
@@ -235,8 +239,12 @@ namespace Maze.Graphics
 
             _shadowState.Position = Instance.RenderTargets.Position;
 
+            i = 0;
             foreach (var (lights, shaderState) in Lights.GetAllTypesData())
-                DrawLightSpecific(lights, shaderState, depthMaps, matrices);
+            {
+                DrawLightSpecific(lights, shaderState, depthMaps, matrices, i);
+                i += lights.Count;
+            }
 
             Instance.Level.Objects.Remove(_box);
         }

@@ -2,11 +2,11 @@
 
 namespace Maze.Graphics.Shaders
 {
-    public abstract class ShaderState
+    public interface IShaderState
     {
-        public abstract EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
+        EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
 
-        public abstract void Apply(EffectParameterCollection parameters);
+        void Apply(EffectParameterCollection parameters);
     }
 
     public class Shader
@@ -20,7 +20,7 @@ namespace Maze.Graphics.Shaders
             StandartState = new StandartShaderState();
         }
 
-        public ShaderState State { get; set; }
+        public IShaderState State { get; set; }
         
         public StandartShaderState StandartState { get; }
 

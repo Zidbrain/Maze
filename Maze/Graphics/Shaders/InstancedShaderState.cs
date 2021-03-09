@@ -3,17 +3,19 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Maze.Graphics.Shaders
 {
-    public abstract class InstancedShaderState : ShaderState
+    public abstract class InstancedShaderState : IShaderState
     {
         public Matrix WorldViewProjection { get; set; }
 
         public Matrix[] Matrices { get; set; }
 
-        public override void Apply(EffectParameterCollection parameters)
+        public virtual void Apply(EffectParameterCollection parameters)
         {
             parameters["_matrix"].SetValue(WorldViewProjection);
             parameters["_matrices"].SetValue(Matrices);
         }
+
+        public abstract EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
     }
 
     public class LevelMeshShaderState : InstancedShaderState
