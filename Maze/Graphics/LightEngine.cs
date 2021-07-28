@@ -21,7 +21,7 @@ namespace Maze.Graphics
         public void AddLightType<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
         {
             if (!_typedLists.ContainsKey(typeof(TLight)))
-                _typedLists.Add(typeof(TLight), (new List<Light>(), shaderState));
+                _typedLists.Add(typeof(TLight), (new List<Light>(LightEngine.LightBatchCount), shaderState));
         }
         public void ChangeShaderState<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
         {
@@ -142,13 +142,19 @@ namespace Maze.Graphics
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
-    public class LightEngine : IDrawable
+    public class LightEngine : IDrawable, IDisposable
     {
         private readonly GammaShaderState _gamma;
         private readonly ShadowMapShaderState _shadowState;
         private readonly RenderTarget2D _shadowMaps;
 
+        private readonly RenderTarget2D _ambientMap;
+        private readonly SSAOShaderState _ambientOcclusion;
+        private readonly BlurShaderState _blur;
+
         private readonly Tile _box;
+
+        public Level Level { get; }
 
         public LightCollection Lights { get; } = new LightCollection();
 
@@ -173,7 +179,11 @@ namespace Maze.Graphics
         {
             _shadowMaps = new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 0, RenderTargetUsage.PreserveContents, false, LightBatchCount);
 
-            _gamma = new GammaShaderState(Instance.RenderTargets.Color);
+            _ambientMap = new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 2, RenderTargetUsage.PreserveContents);
+            _ambientOcclusion = new SSAOShaderState(Instance.RenderTargets.Depth, Instance.RenderTargets.Normal, Instance.RenderTargets.Position);
+            _blur = new BlurShaderState(_ambientMap);
+
+            _gamma = new GammaShaderState(Instance.RenderTargets.Color) { Mask = _ambientMap };
 
             AddLightType(new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
             AddLightType(new SpotLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
@@ -185,6 +195,8 @@ namespace Maze.Graphics
                 LightEnabled = false,
                 DrawToMesh = false,
             };
+
+            Level = level;
         }
 
         private void DrawLightSpecific(List<Light> lights, ILightShaderState<Light> shaderState, Texture2D[] depthMaps, Matrix[][] lightViewMatrices, int start)
@@ -199,14 +211,17 @@ namespace Maze.Graphics
                     var data = lights[j];
                     shaderState.LightingData[j - i * LightBatchCount] = data;
 
-                    _shadowState.LightPosition = data.Position;
-                    _shadowState.DepthMap = depthMaps[start + j];
-                    _shadowState.LightViewMatrices = lightViewMatrices[start + j];
-
-                    Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
 
                     if (lights[j].ShadowsEnabled)
+                    {
+                        _shadowState.LightPosition = data.Position;
+                        _shadowState.DepthMap = depthMaps[start + j];
+                        _shadowState.LightViewMatrices = lightViewMatrices[start + j];
+
+                        Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
+
                         Instance.DrawQuad(_shadowState);
+                    }
                 }
 
                 Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
@@ -216,13 +231,34 @@ namespace Maze.Graphics
 
         public void Draw()
         {
-            Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
+            Instance.GraphicsDevice.SetRenderTarget(_ambientMap);
+
+            Instance.DrawQuad(_ambientOcclusion);
+            Instance.Present();
+
+            _blur.IsVertical = false;
+            Instance.DrawQuad(_blur);
+            Instance.Present();
+            _blur.IsVertical = true;
+            Instance.DrawQuad(_blur);
+
+            Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
+            Instance.GraphicsDevice.Clear(Color.Transparent);
             Instance.DrawQuad(_gamma);
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.Default;
 
             _box.Position = Instance.Level.CameraPosition;
             Instance.Level.Objects.Add(_box);
+
+            var removed = new Stack<Light>();
+            foreach (var light in Lights)
+            {
+                if (!Instance.Frustum.Intersects(new BoundingSphere(light.Position, light.Radius)))
+                    removed.Push(light);
+            }
+            foreach (var light in removed)
+                Lights.Remove(light);
 
             var depthMaps = new Texture2D[Lights.Count];
             var matrices = new Matrix[Lights.Count][];
@@ -231,7 +267,7 @@ namespace Maze.Graphics
             foreach (var light in Lights)
             {
                 if (light.ShadowsEnabled)
-                    depthMaps[i] = light.GetShadows(out matrices[i]);
+                    depthMaps[i] = light.GetShadows(Level.Objects.Static(false).Evaluate(), out matrices[i]);
                 i++;
             }
 
@@ -247,6 +283,22 @@ namespace Maze.Graphics
             }
 
             Instance.Level.Objects.Remove(_box);
+
+            foreach (var light in removed)
+                Lights.Add(light);
+        }
+
+        ~LightEngine() => Dispose();
+
+        public void Dispose()
+        {
+            _shadowMaps.Dispose();
+            _box.Dispose();
+
+            foreach (var light in Lights)
+                light.Dispose();
+
+            GC.SuppressFinalize(this);
         }
     }
 }

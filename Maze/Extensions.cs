@@ -5,6 +5,7 @@ using Maze.Engine;
 using Microsoft.Xna.Framework.Graphics;
 using Maze.Graphics;
 using static System.MathF;
+using System.Text.RegularExpressions;
 
 namespace Maze
 {
@@ -54,7 +55,7 @@ namespace Maze
             return false;
         }
 
-        public static Vector3 XZ(this Vector3 value) =>
+        public static Vector3 XZ(this in Vector3 value) =>
             new(value.X, 0f, value.Z);
 
         public static float Distance(in Vector3 point, in Plane plane) =>
@@ -62,6 +63,8 @@ namespace Maze
 
         public static float SignedDistance(in Vector3 point, in Plane plane) =>
             (Vector3.Dot(point, plane.Normal) + plane.D) / plane.Normal.Length();
+
+        public static Vector2 MinusY(this Vector2 value) => new Vector2(value.X, -value.Y);
 
         public static float SignedDistance(in Vector3 point, in Vector3 pointOnPlane, in Vector3 normal) =>
             Vector3.Dot(normal, pointOnPlane - point) / normal.LengthSquared();
@@ -122,7 +125,7 @@ namespace Maze
         public static void SetRenderTargets(this GraphicsDevice graphicsDevice, RenderTargets renderTargets) =>
             graphicsDevice.SetRenderTargets(renderTargets.Bindings);
 
-        public static Vector4 ToVector4(this Plane plane) =>
+        public static Vector4 ToVector4(this in Plane plane) =>
             new(plane.Normal, plane.D);
 
         public static Matrix GetAlignmentMatrix(in Vector3 from, in Vector3 to)
@@ -131,6 +134,22 @@ namespace Maze
             if (axis == Vector3.Zero)
                 axis = from;
             return Matrix.CreateFromAxisAngle(Vector3.Normalize(axis), Acos(Vector3.Dot(from, to) / from.Length() / to.Length()));
+        }
+
+        /// <summary>
+        /// Must be of format (9,9 9,9 9,9)
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public static Vector3 ParseToVector3(string value)
+        {
+            var expression = @"\((?'X'[+-]?\d+(,\d+)?)\s" + @"(?'Y'[+-]?\d+(,\d+)?)\s" + @"(?'Z'[+-]?\d+(,\d+)?)\)";
+
+            if (!Regex.IsMatch(value, expression))
+                throw new FormatException();
+
+            var groups = Regex.Match(value, expression).Groups;
+            return new Vector3(Convert.ToSingle(groups["X"].Value), Convert.ToSingle(groups["Y"].Value), Convert.ToSingle(groups["Z"].Value));
         }
 
     }

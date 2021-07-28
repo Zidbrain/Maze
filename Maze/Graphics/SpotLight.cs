@@ -2,16 +2,17 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using Maze.Graphics.Shaders;
+using Maze.Engine;
 
 namespace Maze.Graphics
 {
-    public class SpotLight : Light, IDisposable
+    public class SpotLight : Light
     {
-        private readonly RenderTarget2D _shadowMap;
+        private RenderTarget2D _shadowMap;
+        private Texture2D _bakedShadow;
 
+        [Setting("Direction")]
         public Vector3 Direction { get; set; }
-
-        public float Reach { get; set; }
 
         public float DiversionAngle { get; set; }
 
@@ -23,25 +24,30 @@ namespace Maze.Graphics
 
         public float SpecularPower { get; set; } = 1f;
 
-
-        public SpotLight(Vector3 direction, float reach, float diversionAngle) : base() 
+        public SpotLight(Vector3 direction, float reach, float diversionAngle) : base()
         {
-            (Direction, Reach, DiversionAngle) = (direction, reach, diversionAngle);
+            (Direction, Radius, DiversionAngle) = (direction, reach, diversionAngle);
 
             _shadowMap = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
         }
 
-        public override Texture2D GetShadows(out Matrix[] lightViewMatrices)
+        public override void LoadStaticState(EnumerableLevelObjects staticObjects)
+        {
+            _bakedShadow = GetShadows(staticObjects, out _);
+            _shadowMap = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
+        }
+
+        public override Texture2D GetShadows(EnumerableLevelObjects levelObjects, out Matrix[] lightViewMatrices)
         {
             var up = Vector3.Transform(Vector3.Up, Extensions.GetAlignmentMatrix(Vector3.Forward, Direction));
 
             var matrix = Matrix.CreateWorld(-Position, Vector3.Forward, Vector3.Up) *
                 Matrix.CreateLookAt(Vector3.Zero, Direction, up) *
-                Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(90f), 1f, 0.01f, Reach);
+                Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(90f), 1f, 0.01f, Radius);
 
             lightViewMatrices = new Matrix[] { matrix };
 
-            var objects = Maze.Instance.Level.Objects.Intersect(new BoundingFrustum(matrix));
+            var objects = levelObjects.Intersect(new BoundingFrustum(matrix)).Evaluate();
 
             objects.SetShaderState(new WriteDepthShaderState() { LightPosition = Position, WorldViewProjection = matrix });
             objects.Level.Mesh.ShaderState = new WriteDepthInstancedShaderState() { LightPosition = Position, WorldViewProjection = matrix };
@@ -51,6 +57,8 @@ namespace Maze.Graphics
             gd.SetRenderTarget(_shadowMap);
             gd.Clear(ClearOptions.DepthBuffer | ClearOptions.Target, Color.Black, 1f, 0);
 
+            if (_bakedShadow != null)
+                Maze.Instance.DrawQuad(new DefferedShaderState { Color = _bakedShadow });
             objects.Draw();
             objects.Level.Mesh.Draw();
 
@@ -60,7 +68,7 @@ namespace Maze.Graphics
             return _shadowMap;
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             _shadowMap.Dispose();
 

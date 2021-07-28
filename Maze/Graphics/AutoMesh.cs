@@ -55,9 +55,6 @@ namespace Maze.Graphics
                     meshShader.NormalTexture = info.Key.Normal;
                 }
 
-                if (ShaderState is WriteDepthInstancedShaderState state)
-                    state.Texture = info.Key.Texture;
-
                 info.Value.ShaderState = ShaderState;
 
                 info.Value.Draw();

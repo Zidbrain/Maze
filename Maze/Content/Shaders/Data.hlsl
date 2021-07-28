@@ -40,15 +40,18 @@ struct DefferedPixel
 struct PSOutput
 {
     float4 Color : SV_Target0;
-    float Depth : SV_Target1;
+    float4 Depth : SV_Target1;
     float4 Normal : SV_Target2;
     float4 Position : SV_Target3;
 };
 
-PARAMETER(texture _texture);
-PARAMETER(texture _depthBuffer);
-PARAMETER(texture _normalBuffer);
-PARAMETER(texture _positionBuffer);
+tbuffer Textures : register(t1)
+{
+    PARAMETER(Texture2D _texture);
+    PARAMETER(Texture2D _depthBuffer);
+    PARAMETER(Texture2D _normalBuffer);
+    PARAMETER(Texture2D _positionBuffer);
+}
 
 PARAMETER(float3 _cameraPosition);
 
@@ -59,15 +62,22 @@ SamplerState wrapSampler = sampler_state
     AddressW = WRAP;
 };
 
+SamplerState clampSampler = sampler_state
+{
+    AddressU = clamp;
+    AddressV = clamp;
+    AddressW = clamp;
+};
+
 SamplerState borderSampler = sampler_state
 {
     AddressU = BORDER;
     AddressV = BORDER;
     AddressW = BORDER;
-    BorderColor = 0xFFFFFFFF;
+    BorderColor = 0x000000;
 };
 
-sampler2D textureSampler = sampler_state
+SamplerState anisotropicSampler = sampler_state
 {
     Texture = <_texture>;
     AddressU = WRAP;
@@ -77,21 +87,6 @@ sampler2D textureSampler = sampler_state
     MaxAnisotropy = 16;
 };
 
-sampler2D depthSampler = sampler_state
-{
-    Texture = <_depthBuffer>;
-};
-
-sampler2D normalSampler = sampler_state
-{
-    Texture = <_normalBuffer>;
-};
-
-sampler2D positionSampler = sampler_state
-{
-    Texture = <_positionBuffer>;
-};
-
 float Distance(float3 value, float4 plane)
 {
     return dot(value, plane.xyz) + plane.w;
@@ -99,7 +94,7 @@ float Distance(float3 value, float4 plane)
 
 float3 GetNormal(in float2 texCoord)
 {
-    return (tex2D(normalSampler, texCoord).rgb - float3(0.5, 0.5, 0.5)) * 2;
+    return (_normalBuffer.Sample(borderSampler, texCoord).xyz - float3(0.5, 0.5, 0.5)) * 2;
 }
 
 void OrientVector(inout float3 vec, in float3 onPosition, in float3 vectorPosition)

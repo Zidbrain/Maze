@@ -34,9 +34,9 @@ PSOutput StandartPS(in Pixel input)
     if (_onlyColor)
         output.Color = _color;
     else
-        output.Color = tex2D(textureSampler, input.TextureCoordinate) * _color;
+        output.Color = _texture.Sample(anisotropicSampler, input.TextureCoordinate) * _color;
     
-    output.Depth = input.Position.z;
+    output.Depth = float4(input.Position.z, 0, 0, 1);
     
     if (_normalEnabled && !_onlyColor)
     {
@@ -63,12 +63,15 @@ DefferedPixel RasterizeVS(float4 position : SV_Position, float2 textureCoordinat
 
 float4 RasterizePS(in DefferedPixel input) : SV_Target
 {
-    return tex2D(textureSampler, input.TextureCoordinate);
+    return _texture.Sample(anisotropicSampler, input.TextureCoordinate);
 }
+
+PARAMETER(Texture2D _mask);
 
 float4 GammaPS(in DefferedPixel input) : SV_Target
 {
-    return pow(RasterizePS(input) * _color, 1 / _gamma);
+    float4 mask = _mask.Sample(clampSampler, input.TextureCoordinate);
+    return pow(RasterizePS(input) * _color * mask.r, 1 / _gamma);
 }
 
 TECHNIQUE(Standart, StandartVS, StandartPS);

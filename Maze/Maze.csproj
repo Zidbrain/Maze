@@ -37,4 +37,6 @@
     <Exec Command="mgcb /importer:EffectImporter /processor:EffectProcessor /processorParam:DebugMode=Debug /outputDir:$(TargetDir) /intermediateDir:Content/obj/$(MonoGamePlatform) /platform:Windows /profile:HiDef /compress:False /build:Content/Shaders/Shader.hlsl /r /q" />
   </Target>
 
+  <ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
+
 </Project>

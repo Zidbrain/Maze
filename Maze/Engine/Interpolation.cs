@@ -34,15 +34,16 @@ namespace Maze.Engine
         public static Interpolation Start(TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
         {
             var ret = new Interpolation(time, repeatOptions);
-            ret.Start();
-            return ret;
+            return ret.Start();
         }
 
-        public void Start()
+        public Interpolation Start()
         {
             if (!Active)
                 Maze.Instance.UpdateableManager.Add(this);
             else _hook = Maze.Instance.GameTime.TotalGameTime.TotalMilliseconds;
+
+            return this;
         }
 
         public void Stop(bool setValue = true) =>
@@ -76,7 +77,20 @@ namespace Maze.Engine
             var factor = (float)((time.TotalGameTime.TotalMilliseconds - _hook) / _totalMilliseconds);
 
             if (factor >= 1f)
-                return true;
+            {
+                switch (RepeatOptions)
+                {
+                    case RepeatOptions.None:
+                        Active = false;
+                        return true;
+                    case RepeatOptions.Cycle:
+                        (From, To) = (To, From);
+                        goto case RepeatOptions.Jump;
+                    case RepeatOptions.Jump:
+                        Begin();
+                        return false;
+                }
+            }
 
             Value = MathHelper.Lerp(From, To, Reverse ? 1f - factor : factor);
 
@@ -88,21 +102,9 @@ namespace Maze.Engine
         protected virtual void End()
         {
             if (_setValue)
-                Value = To;
-
-            switch (RepeatOptions)
             {
-                case RepeatOptions.None:
-                    if (_setValue)
-                        Stopped?.Invoke(this, EventArgs.Empty);
-                    Active = false;
-                    break;
-                case RepeatOptions.Cycle:
-                    (From, To) = (To, From);
-                    goto case RepeatOptions.Jump;
-                case RepeatOptions.Jump:
-                    Maze.Instance.UpdateableManager.Add(this);
-                    break;
+                Value = To;
+                Stopped?.Invoke(this, EventArgs.Empty);
             }
         }
 

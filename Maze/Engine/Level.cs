@@ -72,6 +72,7 @@ namespace Maze.Engine
             {
                 var dif = (Mouse.GetState().Position - new Point(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2)).ToVector2() / 750f;
                 Mouse.SetPosition(Maze.Instance.Window.ClientBounds.Width / 2, Maze.Instance.Window.ClientBounds.Height / 2);
+                dif += GamePad.GetState(0).ThumbSticks.Right.MinusY() / 70f;
                 if (dif == Vector2.Zero)
                     return;
 
@@ -82,14 +83,14 @@ namespace Maze.Engine
 
                 _yawpitch -= dif;
 
-                var transform = Matrix.CreateFromYawPitchRoll(_yawpitch.X, _yawpitch.Y, CameraRoll);
-                CameraDirection = Vector3.Transform(Vector3.Forward, transform);
-                CameraUp = Vector3.Transform(Vector3.Up, transform);
-
                 if (_yawpitch.Y >= PiOver2)
                     _yawpitch.Y = PiOver2;
                 else if (_yawpitch.Y <= -PiOver2)
                     _yawpitch.Y = -PiOver2;
+
+                var transform = Matrix.CreateFromYawPitchRoll(_yawpitch.X, _yawpitch.Y, CameraRoll);
+                CameraDirection = Vector3.Transform(Vector3.Forward, transform);
+                CameraUp = Vector3.Transform(Vector3.Up, transform);
             }
         }
 
@@ -98,12 +99,20 @@ namespace Maze.Engine
 
         private void UpdateCameraPosition(GameTime gameTime)
         {
-            var boost = Keyboard.GetState().IsKeyDown(Keys.LeftShift);
+            var boost = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || GamePad.GetState(0).Triggers.Right >= 0.5f;
 
             var speed = 0.05f * (float)gameTime.ElapsedGameTime.TotalMilliseconds / (1000f / 60f);
 
-            var forward = CameraDirection.XZ();
+            Vector3 forward;
+            if (_yawpitch.Y == -PiOver2)
+                forward = CameraUp;
+            else if (_yawpitch.Y == PiOver2)
+                forward = -CameraUp;
+            else
+                forward = CameraDirection.XZ();
+            forward.Normalize();
             var right = Vector3.Cross(CameraDirection, CameraUp).XZ();
+            right.Normalize();
 
             var vector = Vector3.Zero;
             foreach (var key in Keyboard.GetState().GetPressedKeys())
@@ -125,6 +134,9 @@ namespace Maze.Engine
 
                 }
             }
+
+            var gamepadDir = GamePad.GetState(0).ThumbSticks.Left;
+            vector += forward * gamepadDir.Y + right * gamepadDir.X;
 
             if (vector != Vector3.Zero)
             {
@@ -248,6 +260,7 @@ namespace Maze.Engine
                 ShaderState = new Graphics.Shaders.StandartShaderState() { OnlyColor = true },
                 DrawToMesh = false,
                 EnableCollision = false,
+                IsStatic = true
             };
             _exit.Light.DiffusePower = 0f;
 
@@ -266,7 +279,7 @@ namespace Maze.Engine
 
                     direction |= cells[x, y].removedWall;
 
-                    _tiles[x, y] = new Tile(this, 1f, direction) { Position = new Vector3(x, 0f, -y) };
+                    _tiles[x, y] = new Tile(this, 1f, direction) { Position = new Vector3(x, 0f, -y), IsStatic = true };
                     _tiles[x, y].Light.DiffusePower = 0f;
                 }
 
@@ -276,9 +289,11 @@ namespace Maze.Engine
         public LevelTextures Textures { get; }
 
         private readonly SpotLight _spotlight;
+        private readonly List<IUpdateable> _remove;
 
         public Level()
         {
+            Maze.Instance.SettingsManager.Subscribe(this);
             Textures = new LevelTextures();
 
             Objects = new LevelObjectCollection(this);
@@ -289,7 +304,14 @@ namespace Maze.Engine
 
             GenerateMaze(size);
 
-            new CollectionInterpolation<Tile>(_tiles.ToIEnumerable<Tile>(),
+            _sprite = new Sprite(this, new Vector2(0.2f, 0.2f))
+            {
+                Position = new Vector3(0f, -0.4f, 0f)
+            };
+
+            _remove = new List<IUpdateable>
+            {
+                new CollectionInterpolation<Tile>(_tiles.ToIEnumerable<Tile>(),
                 (tile, value) =>
                 {
                     tile.Light.DiffusePower = value * 5f;
@@ -298,11 +320,16 @@ namespace Maze.Engine
                 tile =>
                     Vector3.Distance(CameraPosition, tile.Position) < 1.5f,
                 TimeSpan.FromSeconds(0.25d))
-            {
-                SkipCondition = tile => !tile.LightEnabled,
-                OnEnter = tile => { if (!LightEngine.Lights.Contains(tile.Light)) LightEngine.Lights.Add(tile.Light); },
-                OnExit = tile => LightEngine.Lights.Remove(tile.Light)
-            }.Start();
+                {
+                    SkipCondition = tile => !tile.LightEnabled,
+                    OnEnter = tile => { if (!LightEngine.Lights.Contains(tile.Light)) LightEngine.Lights.Add(tile.Light); },
+                    OnExit = tile => LightEngine.Lights.Remove(tile.Light)
+                }.Start(),
+
+                CustomInterpolation<Sprite>.Start(_sprite, static (sprite, t) =>
+                    sprite.Position = new Vector3(0f, -0.27f - 0.05f * (MathF.Sin((t - 0.5f) * MathF.PI) + 1f), 0f),
+                TimeSpan.FromSeconds(0.75d), RepeatOptions.Cycle)
+            };
 
             foreach (var tile in _tiles)
                 Objects.Add(tile);
@@ -336,29 +363,29 @@ namespace Maze.Engine
             };
             LightEngine.Lights.Add(_spotlight);
 
-            _sprite = new Sprite(this, new Vector2(0.2f, 0.2f))
-            {
-                Position = new Vector3(0f, -0.4f, 0f)
-            };
+            Maze.Instance.SettingsManager.Subscribe(_spotlight);
+
             Objects.Add(_sprite);
-
-            CustomInterpolation<Sprite>.Start(_sprite, static (sprite, t) =>
-                sprite.Position = new Vector3(0f, -0.27f - 0.05f * (MathF.Sin((t - 0.5f) * MathF.PI) + 1f), 0f),
-                TimeSpan.FromSeconds(0.75d), RepeatOptions.Cycle);
-
-            //CustomInterpolation<SpotLight>.Start(_spotlight, static (spotlight, t) =>
-            //{
-            //    spotlight.Direction = new Vector3(MathF.Cos(t * MathF.PI * 2), MathF.Sin(t * MathF.PI * 2), MathF.Sin(t * MathF.PI * 2));
-            //    spotlight.Position = new Vector3(0f, 0.2f * t, 0f);
-            //}, TimeSpan.FromSeconds(2d), RepeatOptions.Jump);
         }
 
         private readonly Sprite _sprite;
 
+        private bool _initializedLights;
+
         public void Draw()
         {
-            //_spotlight.Direction = CameraDirection;
-            //_spotlight.Position = CameraPosition;
+            if (!_initializedLights)
+            {
+                var obj = Objects.Static().Evaluate();
+                foreach (var tile in _tiles)
+                    tile.Light.LoadStaticState(obj);
+                _exit.Light.LoadStaticState(obj);
+                _spotlight.LoadStaticState(obj);
+
+                Maze.Instance.GraphicsDevice.SetRenderTargets(Maze.Instance.RenderTargets);
+
+                _initializedLights = true;
+            }
 
             Objects.SetShaderState(static () => new StandartShaderState
             {
@@ -366,16 +393,12 @@ namespace Maze.Engine
             });
             (_exit.ShaderState as StandartShaderState).OnlyColor = true;
 
-            var objects = Objects.Intersect(Maze.Instance.Frustum);
-            objects.Draw();
+            Objects.Intersect(Maze.Instance.Frustum).Draw();
 
             Mesh.ShaderState.WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection;
             Mesh.Draw();
 
             LightEngine.Draw();
-            //_sprite.Update(Maze.Instance.GameTime);
-            //_sprite.ShaderState = new StandartShaderState { WorldViewProjection = Maze.Instance.Shader.StandartState.WorldViewProjection };
-            //_sprite.Draw();
 
             Maze.Instance.Present();
         }
@@ -495,7 +518,11 @@ namespace Maze.Engine
         }
 
         void IUpdateable.Begin() { }
-        void IUpdateable.End() { }
+        void IUpdateable.End()
+        {
+            foreach (var remove in _remove)
+                Maze.Instance.UpdateableManager.Remove(remove);
+        }
 
         public void Dispose()
         {
@@ -504,6 +531,10 @@ namespace Maze.Engine
                 tile.Dispose();
 
             _spotlight.Dispose();
+
+            LightEngine.Dispose();
+
+            Maze.Instance.SettingsManager.Unsubscribe(this);
 
             GC.SuppressFinalize(this);
         }

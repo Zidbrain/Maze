@@ -5,9 +5,9 @@ namespace Maze.Graphics.Shaders
 {
     public abstract class TransformShaderState : IShaderState
     {
-        public Matrix WorldViewProjection { get; set; }
+        public Matrix WorldViewProjection { get; set; } = Matrix.Identity;
 
-        public Matrix Transform { get; set; }
+        public Matrix Transform { get; set; } = Matrix.Identity;
 
         public virtual void Apply(EffectParameterCollection parameters)
         {

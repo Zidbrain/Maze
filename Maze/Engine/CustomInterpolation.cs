@@ -33,11 +33,12 @@ namespace Maze.Engine
             return ret;
         }
 
+        public new CustomInterpolation<T> Start() => base.Start() as CustomInterpolation<T>;
+
         public static CustomInterpolation<T> Start(T @object, Setter<T> setter, TimeSpan time, RepeatOptions repeatOptions = RepeatOptions.None)
         {
             var ret = new CustomInterpolation<T>(@object, setter, time, repeatOptions);
-            ret.Start();
-            return ret;
+            return ret.Start();
         }
     }
 }

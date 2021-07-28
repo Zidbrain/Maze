@@ -46,8 +46,11 @@ namespace Maze.Engine
             return ret;
         }
 
-        public void Start() =>
+        public CollectionInterpolation<T> Start()
+        {
             Maze.Instance.UpdateableManager.Add(this);
+            return this;
+        }
 
         public void Stop() => Active = false;
 

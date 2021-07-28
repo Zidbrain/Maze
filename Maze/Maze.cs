@@ -63,6 +63,9 @@ namespace Maze
 
             UpdateableManager = new UpdateableManager();
 
+            SettingsManager = new SettingsManager();
+            UpdateableManager.Add(SettingsManager);
+
             GraphicsDevice.DiscardColor = Color.Transparent;
 
             Content.RootDirectory = "Content";
@@ -83,7 +86,7 @@ namespace Maze
             Level.OutOfBounds += GenerateNewLevel;
 
             void GenerateNewLevel(object sender, EventArgs e)
-            {
+            { 
                 UpdateableManager.Remove(Level);
                 Level.Dispose();
 
@@ -102,8 +105,8 @@ namespace Maze
             _vertexBuffer.SetData(new[]
             {
                 new VertexPositionTexture(new Vector3(-1,1,1), Vector2.Zero),
-                new VertexPositionTexture(new Vector3(-1,-1,1), new Vector2(0f, 1f)),
                 new VertexPositionTexture(new Vector3(1,-1, 1), Vector2.One),
+                new VertexPositionTexture(new Vector3(-1,-1,1), new Vector2(0f, 1f)),
                 new VertexPositionTexture(new Vector3(1,-1, 1), Vector2.One),
                 new VertexPositionTexture(new Vector3(-1,1,1), Vector2.Zero),
                 new VertexPositionTexture(new Vector3(1,1,1), new Vector2(1f,0f))
@@ -116,6 +119,9 @@ namespace Maze
                 FogColor = Color.CornflowerBlue,
             };
         }
+
+
+        public SettingsManager SettingsManager { get; private set; }
 
         private bool _showMessage = true;
 
@@ -184,8 +190,10 @@ namespace Maze
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.SetRenderTargets(RenderTargets);
-
             GraphicsDevice.Clear(Color.Transparent);
+            GraphicsDevice.SetRenderTarget(RenderTargets.Depth);
+            GraphicsDevice.Clear(Color.Red);
+            GraphicsDevice.SetRenderTargets(RenderTargets);
 
             DrawableQueue.Enqueue(Level);
 

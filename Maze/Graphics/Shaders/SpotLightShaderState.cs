@@ -11,7 +11,6 @@ namespace Maze.Graphics.Shaders
         protected override void SetParameters(EffectParameterCollection parameters, int count)
         {
             var colors = new Vector4[count];
-            var radiuses = new float[count];
             var powers = new float[count];
             var hardnesses = new float[count];
             var specularHardnesses = new float[count];
@@ -26,7 +25,6 @@ namespace Maze.Graphics.Shaders
                 var data = LightingData[i];
 
                 colors[i] = data.Color.ToVector4();
-                radiuses[i] = data.Reach;
                 powers[i] = data.DiffusePower;
                 hardnesses[i] = data.Hardness;
                 specularHardnesses[i] = data.SpecularHardness;
@@ -40,7 +38,6 @@ namespace Maze.Graphics.Shaders
             }
 
             parameters["_lightingColor"].SetValue(colors);
-            parameters["_lightingRadius"].SetValue(radiuses);
             parameters["_diffusePower"].SetValue(powers);
             parameters["_hardness"].SetValue(hardnesses);
             parameters["_specularHardness"].SetValue(specularHardnesses);

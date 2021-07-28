@@ -14,8 +14,8 @@ namespace Maze.Engine
             new Vector3(-0.5f, 0f, 0.5f),
             new Vector3(0.5f, 0f, 0.5f),
             new Vector3(0.5f, 0f, 0.5f),
+            new Vector3(0.5f, 0f, -0.5f),
             new Vector3(-0.5f, 0f, -0.5f),
-            new Vector3(0.5f, 0f, -0.5f)
         };
 
         private static readonly VertexBuffer s_buffer;

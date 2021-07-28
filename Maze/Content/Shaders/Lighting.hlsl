@@ -23,6 +23,7 @@ cbuffer LightData : register(b1)
     PARAMETER(int _shadowsEnabled[MAX_LIGHTS]);
 };
 
+    PARAMETER(Texture2D _SSAOMap);
     PARAMETER(float _diversionAngle[MAX_LIGHTS]);
     PARAMETER(float3 _direction[MAX_LIGHTS]);
     PARAMETER(matrix _directionMatrix[MAX_LIGHTS]);
@@ -39,14 +40,14 @@ float sqr(in float value)
 
 float4 SpotLightPS(in DefferedPixel input) : COLOR
 {
-    float4 color = tex2D(textureSampler, input.TextureCoordinate);
-    float3 position = tex2D(positionSampler, input.TextureCoordinate).rgb;
+    float4 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate);
+    float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
     float3 normal = GetNormal(input.TextureCoordinate);
     
     [unroll(MAX_LIGHTS)]
     for (int i = 0; i < _lightsCount; i++)
     {
-        float shadowValue = _shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1;
+        float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
         
         float3 lightDir = _lightingPosition[i] - position;
         float dist = length(lightDir);
@@ -84,10 +85,12 @@ float4 SpotLightPS(in DefferedPixel input) : COLOR
             if ((t1 >= 0 && t1 <= 1 && s1.z < 0 && length(s1) <= _lightingRadius[i]) ||
                  (t2 >= 0 && t2 <= 1 && s2.z < 0 && length(s2) <= _lightingRadius[i]) || isIn)
             {
-                float v = abs(t2 - t1);
-                //if (isIn)
-                //    v = max(abs(t1), abs(t2));
-                v = 2 * atan(v) / PI;
+                //float v = abs(t2 - t1);
+                ////if (isIn)
+                ////    v = max(abs(t1), abs(t2));
+                //v = 2 * atan(v) / PI;
+                
+                float v =  1 - length(x0 - s * (dot(x0, s) / lengthSqr(s))) / _lightingRadius[i];
                 
                 float value =  pow(v, 1 / _hardness[i]) * _diffusePower[i];
                 
@@ -104,14 +107,14 @@ float4 SpotLightPS(in DefferedPixel input) : COLOR
 
 float4 LightingPS(in DefferedPixel input) : COLOR
 {
-    float4 color = tex2D(textureSampler, input.TextureCoordinate);
-    float3 position = tex2D(positionSampler, input.TextureCoordinate).rgb;
+    float4 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate);
+    float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
     float3 normal = GetNormal(input.TextureCoordinate);
     
     [unroll(MAX_LIGHTS)]
     for (int i = 0; i < _lightsCount; i++)
     {
-        float shadowValue = _shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1;
+        float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
         
         float3 lightDir = _lightingPosition[i] - position;
         float dist = length(lightDir);
@@ -226,7 +229,7 @@ float GetShadowValue(in float3 vecToPixel, in float4 position)
 
 float4 ShadowToCamera(in DefferedPixel input) : SV_Target
 {
-    float4 position = tex2D(positionSampler, input.TextureCoordinate);
+    float4 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate);
     float3 vec = position.xyz - _lightPosition;
     
     float value = GetShadowValue(vec, position);

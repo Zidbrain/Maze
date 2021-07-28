@@ -109,7 +109,8 @@ namespace Maze.Engine
                 SpecularHardness = 600,
                 SpecularPower = 12,
                 Hardness = 1.5f,
-                Position = new Vector3(0f, size / 2f - 0.1f, 0f)
+                Position = new Vector3(0f, size / 2f - 0.1f, 0f),
+                IsStatic = true
             };
         }
 

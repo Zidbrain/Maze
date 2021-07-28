@@ -8,7 +8,7 @@ namespace Maze.Graphics.Shaders
         public virtual void Apply(EffectParameterCollection parameters)
         {
             parameters["_texture"].SetValue(Color);
-           // parameters["_depthBuffer"].SetValue(Depth);
+            parameters["_depthBuffer"].SetValue(Depth);
             parameters["_normalBuffer"].SetValue(Normal);
             parameters["_positionBuffer"].SetValue(Position);
         }

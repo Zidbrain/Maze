@@ -38,13 +38,16 @@ namespace Maze.Graphics.Shaders
 
             var positions = new Vector3[count];
             var shadowsEnabled = new int[count];
+            var radii = new float[count];
 
             for (int i = 0; i < count; i++)
             {
+                radii[i] = LightingData[i].Radius;
                 positions[i] = LightingData[i].Position;
                 shadowsEnabled[i] = System.Convert.ToInt32(LightingData[i].ShadowsEnabled);
             }
 
+            parameters["_lightingRadius"].SetValue(radii);
             parameters["_lightingPosition"].SetValue(positions);
             parameters["_shadowsEnabled"].SetValue(shadowsEnabled);
 
@@ -73,7 +76,6 @@ namespace Maze.Graphics.Shaders
         protected override void SetParameters(EffectParameterCollection parameters, int count)
         {
             var colors = new Vector4[count];
-            var radiuses = new float[count];
             var powers = new float[count];
             var hardnesses = new float[count];
             var specularHardnesses = new float[count];
@@ -82,7 +84,6 @@ namespace Maze.Graphics.Shaders
             for (int i = 0; i < count; i++)
             {
                 colors[i] = LightingData[i].Color.ToVector4();
-                radiuses[i] = LightingData[i].Radius;
                 powers[i] = LightingData[i].DiffusePower;
                 hardnesses[i] = LightingData[i].Hardness;
                 specularHardnesses[i] = LightingData[i].SpecularHardness;
@@ -90,7 +91,6 @@ namespace Maze.Graphics.Shaders
             }
 
             parameters["_lightingColor"].SetValue(colors);
-            parameters["_lightingRadius"].SetValue(radiuses);
             parameters["_diffusePower"].SetValue(powers);
             parameters["_hardness"].SetValue(hardnesses);
             parameters["_specularHardness"].SetValue(specularHardnesses);
@@ -119,12 +119,10 @@ namespace Maze.Graphics.Shaders
     {
         public Vector3 LightPosition { get; set; }
 
-        public Texture2D Texture { get; set; }
 
         public override void Apply(EffectParameterCollection parameters)
         {
             base.Apply(parameters);
-            parameters["_texture"].SetValue(Texture);
             parameters["_lightPosition"].SetValue(LightPosition);
         }
 
