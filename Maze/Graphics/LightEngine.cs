@@ -211,7 +211,6 @@ namespace Maze.Graphics
                     var data = lights[j];
                     shaderState.LightingData[j - i * LightBatchCount] = data;
 
-
                     if (lights[j].ShadowsEnabled)
                     {
                         _shadowState.LightPosition = data.Position;
@@ -264,10 +263,14 @@ namespace Maze.Graphics
             var matrices = new Matrix[Lights.Count][];
 
             var i = 0;
+            var dynamicObjects = Level.Objects.Static(false).Evaluate();
             foreach (var light in Lights)
             {
                 if (light.ShadowsEnabled)
-                    depthMaps[i] = light.GetShadows(Level.Objects.Static(false).Evaluate(), out matrices[i]);
+                    if (light.IsStatic)
+                        depthMaps[i] = light.GetShadows(dynamicObjects, out matrices[i]);
+                    else
+                        depthMaps[i] = light.GetShadows(Level.Objects, out matrices[i]);
                 i++;
             }
 

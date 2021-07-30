@@ -1,9 +1,9 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Maze.Engine;
 using Maze.Graphics.Shaders;
-using static Maze.Maze;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
-using Maze.Engine;
+using static Maze.Maze;
 
 namespace Maze.Graphics
 {
@@ -40,7 +40,7 @@ namespace Maze.Graphics
 
             var objects = staticObjects.Intersect(new BoundingSphere(Position, Radius)).Evaluate();
 
-            for (int i =0; i < 6; i++)
+            for (int i = 0; i < 6; i++)
             {
                 _bakedShadow[i] = new RenderTarget2D(gd, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
 
@@ -81,12 +81,17 @@ namespace Maze.Graphics
                 var sideObjects = objects.Intersect(new BoundingFrustum(wvp)).Evaluate();
 
                 sideObjects.SetShaderState(new WriteDepthShaderState() { WorldViewProjection = wvp, LightPosition = Position });
-                sideObjects.Level.Mesh.ShaderState = new WriteDepthInstancedShaderState() { WorldViewProjection = wvp , LightPosition = Position };
+                sideObjects.Level.Mesh.ShaderState = new WriteDepthInstancedShaderState() { WorldViewProjection = wvp, LightPosition = Position };
 
                 gd.SetRenderTarget(_shadowMap, i);
                 gd.Clear(ClearOptions.DepthBuffer | ClearOptions.Target, Color.Black, 1f, 0);
 
-                Instance.DrawQuad(new DefferedShaderState { Color = _bakedShadow[i] });
+                if (IsStatic)
+                {
+                    Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
+                    Instance.DrawQuad(new DefferedShaderState { Color = _bakedShadow[i] });
+                    Instance.GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                }
                 sideObjects.Draw();
                 sideObjects.Level.Mesh.Draw();
             }

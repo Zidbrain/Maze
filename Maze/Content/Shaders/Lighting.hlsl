@@ -58,7 +58,7 @@ float4 SpotLightPS(in DefferedPixel input) : COLOR
         float3 x0 = mul(float4(position, 1), _directionMatrix[i]).xyz;
         float3 s = mul(float4(_cameraPosition - position, 1), _directionMatrix[i]).xyz;
                         
-        float angle = angleCos(_direction[i], -lightDir);
+        float angle = angleCos(_direction[i], lightDir);
         bool isIn = false;
         if (angle > csa && dist <= _lightingRadius[i])
         {

@@ -10,6 +10,7 @@ namespace Maze.Graphics
     {
         private RenderTarget2D _shadowMap;
         private Texture2D _bakedShadow;
+        private DefferedShaderState _bakedState;
 
         [Setting("Direction")]
         public Vector3 Direction { get; set; }
@@ -34,6 +35,8 @@ namespace Maze.Graphics
         public override void LoadStaticState(EnumerableLevelObjects staticObjects)
         {
             _bakedShadow = GetShadows(staticObjects, out _);
+            _bakedState = new DefferedShaderState { Color = _bakedShadow };
+
             _shadowMap = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1024, 1024, false, SurfaceFormat.Single, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
         }
 
@@ -48,6 +51,9 @@ namespace Maze.Graphics
             lightViewMatrices = new Matrix[] { matrix };
 
             var objects = levelObjects.Intersect(new BoundingFrustum(matrix)).Evaluate();
+            if (objects.Count == 0)
+                if (IsStatic)
+                    return _bakedShadow;
 
             objects.SetShaderState(new WriteDepthShaderState() { LightPosition = Position, WorldViewProjection = matrix });
             objects.Level.Mesh.ShaderState = new WriteDepthInstancedShaderState() { LightPosition = Position, WorldViewProjection = matrix };
@@ -58,7 +64,11 @@ namespace Maze.Graphics
             gd.Clear(ClearOptions.DepthBuffer | ClearOptions.Target, Color.Black, 1f, 0);
 
             if (_bakedShadow != null)
-                Maze.Instance.DrawQuad(new DefferedShaderState { Color = _bakedShadow });
+            {
+                Maze.Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
+                Maze.Instance.DrawQuad(_bakedState);
+                Maze.Instance.GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            }
             objects.Draw();
             objects.Level.Mesh.Draw();
 

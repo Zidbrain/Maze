@@ -352,18 +352,21 @@ namespace Maze.Engine
                 AmbientColor = new Color(new Vector4(new Vector3(0.2f), 1f))
             };
 
-            _spotlight = new SpotLight(Vector3.Forward, 2f, ToRadians(30f))
+            _spotlight = new SpotLight(Vector3.Backward, 2f, ToRadians(35f))
             {
-                DiffusePower = 6,
-                SpecularHardness = 600,
-                SpecularPower = 12,
+                DiffusePower = 3,
+                SpecularHardness = 200,
+                SpecularPower = 6,
                 Hardness = 1f,
-                Color = Color.Blue,
-                Position = new Vector3(0f, 0f, 0f)
+                Color = Color.White,
+                Position = new Vector3(0f, 0f, 0f),
+                IsStatic = true
             };
             LightEngine.Lights.Add(_spotlight);
 
-            Maze.Instance.SettingsManager.Subscribe(_spotlight);
+           // CustomInterpolation<SpotLight>.Start(_spotlight, static (spotlight, t) => spotlight.Direction = new Vector3(MathF.Cos(t * MathF.PI * 2), 0f, MathF.Sin(t * MathF.PI * 2)), TimeSpan.FromSeconds(3d), RepeatOptions.Jump);
+
+            //Maze.Instance.SettingsManager.Subscribe(_spotlight);
 
             Objects.Add(_sprite);
         }
@@ -380,7 +383,8 @@ namespace Maze.Engine
                 foreach (var tile in _tiles)
                     tile.Light.LoadStaticState(obj);
                 _exit.Light.LoadStaticState(obj);
-                _spotlight.LoadStaticState(obj);
+                if (_spotlight.IsStatic)
+                    _spotlight.LoadStaticState(obj);
 
                 Maze.Instance.GraphicsDevice.SetRenderTargets(Maze.Instance.RenderTargets);
 
