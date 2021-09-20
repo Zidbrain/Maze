@@ -6,37 +6,41 @@
 #include "Data.hlsl"
 #include "Standart.hlsl"
 
-static const float _offset[] = { 0.0, 1.3846153846, 3.2307692308 };
-static const float _weight[] = { 0.2270270270 / 0.6135134593 / 2, 0.3162162162 / 0.6135134593 / 2, 0.0702702703 / 0.6135134593 / 2 };
+#define samples 5u
+#define LOD 0u        // gaussian done on MIPmap at scale LOD
 
-PARAMETER(bool _vertical);
-
-float4 BlurPS(in DefferedPixel input) : SV_Target
+SamplerState blurSampler = sampler_state 
 {
-    float2 screenSize;
-    _texture.GetDimensions(screenSize.x, screenSize.y);
-    
-    float3 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate).rgb * _weight[0];
-    if (_vertical)
-    {
-        for (int i = 0; i < BLUR_PASSES; i++)
-        {
-            color += _texture.Sample(anisotropicSampler, input.TextureCoordinate + float2(0.0, _offset[i] / screenSize.y)).rgb * _weight[i];
-            color += _texture.Sample(anisotropicSampler, input.TextureCoordinate - float2(0.0, _offset[i] / screenSize.y)).rgb * _weight[i];
-        }
-    }
-    else
-    {
-        for (int i = 0; i < BLUR_PASSES; i++)
-        {
-            color += _texture.Sample(anisotropicSampler, input.TextureCoordinate + float2(_offset[i] / screenSize.x, 0.0)).rgb * _weight[i];
-            color += _texture.Sample(anisotropicSampler, input.TextureCoordinate - float2(_offset[i] / screenSize.x, 0.0)).rgb * _weight[i];
-        }
-    }
-    
-   //color =  clamp(color, float3(0, 0, 0), float3(1, 1, 1));
+    Filter = Anisotropic;
+    AddressU = CLAMP;
+    AddressV = CLAMP;
+};
 
-    return float4(color, 1);
+float Gaussian(float2 i) {
+    const float sigma = float(samples) * 0.25;
+    return exp(-0.5 * dot(i /= sigma, i)) / (6.28 * sigma * sigma);
+}
+
+float4 blur(float2 U, float2 scale) 
+{
+    const uint sLOD = 1 << LOD; // tile size = 2^LOD
+
+    float4 ret = float4(0, 0, 0, 0);
+    uint s = samples / sLOD;
+
+    for (uint i = 0; i < s * s; i++) {
+        float2 d = float2(i % s, i / s) * float(sLOD) - float2(samples, samples) / 2.0;
+        ret += Gaussian(d) * _texture.SampleLevel(blurSampler, U + scale * d, LOD);
+    }
+
+    return ret / ret.a;
+}
+
+float4 BlurPS(in DefferedPixel pixel) : COLOR
+{
+    float sizeX, sizeY;
+    _texture.GetDimensions(sizeX, sizeY);
+    return blur(pixel.TextureCoordinate, 1 / float2(sizeX, sizeY));
 }
 
 TECHNIQUE(Blur, RasterizeVS, BlurPS);

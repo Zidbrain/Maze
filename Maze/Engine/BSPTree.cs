@@ -1,192 +1,177 @@
 ﻿using Microsoft.Xna.Framework;
+using System.Collections.Immutable;
 using System.Collections.Generic;
 using static System.MathF;
+using System;
 
 namespace Maze.Engine
 {
-    public class Polygon
-    {
-        private readonly Vector3[] _buf;
-
-        public static float Range => 0.1f;
-
-        public Vector3 A => _buf[0];
-        public Vector3 B => _buf[1];
-        public Vector3 C => _buf[2];
-
-        public Plane Plane { get; }
-
-        public Polygon(params Vector3[] values)
-        {
-            _buf = new Vector3[3];
-            System.Array.Copy(values, _buf, 3);
-            Plane = new Plane(_buf[0], _buf[1], _buf[2]);
-            Plane.Normalize();
-        }
-
-        public Vector3 this[int index] =>
-            _buf[index];
-
-        public bool IsInside(in Vector3 point) =>
-            Extensions.IsInsideTriangle(A, B, C, point);
-    }
-
     public class BSPTreeNode
     {
-        public Plane Plane { get; private set; }
-        public Vector3 PointOnPlane { get; private set; }
+        private enum BoxSplitType
+        {
+            X, Y, Z
+        }
 
-        public List<Polygon> Polygones { get; private set; }
+        public Plane SplittingPlane { get; private set; }
+
+        public ImmutableList<ICollideable> Objects { get; private set; }
+
+        public ImmutableList<ICollideable> UnsplittableObjects { get; private set; }
 
         public BSPTreeNode Front { get; private set; }
         public BSPTreeNode Back { get; private set; }
 
-        public BSPTreeNode(Polygon[] polygones)
+        private BSPTreeNode(IEnumerable<ICollideable> boundaries, BoundingBox boundingBox, BoxSplitType xyzSplit, int splitDepth)
         {
-            Polygones = new List<Polygon>(polygones);
+            List<ICollideable> frontList, backList, unsplittable, objects;
+            BoundingBox frontBox, backBox;
 
-            var back = new List<Polygon>();
-            var front = new List<Polygon>();
-
-            for (var j = 0; (back.Count == 0 || front.Count == 0) && j < polygones.Length; j++)
+            do
             {
-                back.Clear();
-                front.Clear();
-
-                var point = polygones[j];
-                var plane = point.Plane;
-                Plane = plane;
-                PointOnPlane = point[0];
-
-                if (polygones.Length == 1)
-                    return;
-
-                for (var i = 0; i < polygones.Length; i++)
+                splitDepth--;
+                if (splitDepth == 0)
                 {
-                    var a1 = Vector3.Dot(polygones[i][0] - point[0], plane.Normal);
-                    var a2 = Vector3.Dot(polygones[i][1] - point[0], plane.Normal);
-                    var a3 = Vector3.Dot(polygones[i][2] - point[0], plane.Normal);
-
-                    if (a1 < 0 || a2 < 0 || a3 < 0)
-                        front.Add(polygones[i]);
-                    else if (a1 >= 0 && a2 >= 0 && a3 >= 0 )
-                        back.Add(polygones[i]);
+                    Objects = ImmutableList.CreateRange(boundaries);
+                    UnsplittableObjects = ImmutableList.Create<ICollideable>();
+                    return;
                 }
+
+                var center = (boundingBox.Max - boundingBox.Min) / 2f;
+
+                SplittingPlane = xyzSplit switch
+                {
+                    BoxSplitType.X => new(center, Vector3.Right),
+                    BoxSplitType.Y => new(center, Vector3.Up),
+                    BoxSplitType.Z => new(center, Vector3.Backward),
+                    _ => throw new ArgumentException("Wrong box split type", nameof(xyzSplit))
+                };
+
+                frontList = new List<ICollideable>();
+                backList = new List<ICollideable>();
+                unsplittable = new List<ICollideable>();
+                objects = new List<ICollideable>();
+
+                foreach (var boundary in boundaries)
+                {
+                    if (boundary.IsStatic)
+                    {
+                        unsplittable.Add(boundary);
+                        continue;
+                    }
+
+                    switch (boundary.Boundary.Intersects(SplittingPlane))
+                    {
+                        case PlaneIntersectionType.Front:
+                            frontList.Add(boundary);
+                            objects.Add(boundary);
+                            break;
+                        case PlaneIntersectionType.Back:
+                            backList.Add(boundary);
+                            objects.Add(boundary);
+                            break;
+                        case PlaneIntersectionType.Intersecting:
+                            unsplittable.Add(boundary);
+                            break;
+                    }
+                }
+
+                frontBox = xyzSplit switch
+                {
+                    BoxSplitType.X => new(new Vector3(center.X, boundingBox.Min.Y, boundingBox.Min.Z), boundingBox.Max),
+                    BoxSplitType.Y => new(new Vector3(boundingBox.Min.X, center.Y, boundingBox.Min.Z), boundingBox.Max),
+                    BoxSplitType.Z => new(new Vector3(boundingBox.Min.X, boundingBox.Min.Y, center.Z), boundingBox.Max),
+                    _ => throw new ArgumentException("Wrong box split type", nameof(xyzSplit))
+                };
+                backBox = xyzSplit switch
+                {
+                    BoxSplitType.X => new(boundingBox.Min, new Vector3(center.X, boundingBox.Max.Y, boundingBox.Max.Z)),
+                    BoxSplitType.Y => new(boundingBox.Min, new Vector3(boundingBox.Max.X, center.Y, boundingBox.Max.Z)),
+                    BoxSplitType.Z => new(boundingBox.Min, new Vector3(boundingBox.Max.X, boundingBox.Max.Y, center.Z)),
+                    _ => throw new ArgumentException("Wrong box split type", nameof(xyzSplit))
+                };
+
+                xyzSplit++;
+                if ((int)xyzSplit > 2)
+                    xyzSplit = 0;
+
+                if (frontList.Count == 0 && backList.Count == 0)
+                    break;
+
+                if (frontList.Count == 0)
+                {
+                    boundingBox = backBox;
+                    backList.AddRange(unsplittable);
+                    boundaries = backList;
+                }
+                else if (backList.Count == 0)
+                {
+                    boundingBox = frontBox;
+                    frontList.AddRange(unsplittable);
+                    boundaries = frontList;
+                }
+
+            } while (frontList.Count == 0 || backList.Count == 0);
+
+            UnsplittableObjects = ImmutableList.CreateRange(unsplittable);
+            Objects = ImmutableList.CreateRange(objects);
+
+            if (frontList.Count != 0 || backList.Count != 0)
+            {
+                Front = new BSPTreeNode(frontList, frontBox, xyzSplit, splitDepth);
+                Back = new BSPTreeNode(backList, backBox, xyzSplit, splitDepth);
             }
-
-            if (back.Count == 0 || front.Count == 0)
-                return;
-
-            Back = new BSPTreeNode(back.ToArray());
-            Front = new BSPTreeNode(front.ToArray());
         }
+
+        public BSPTreeNode(IEnumerable<ICollideable> boundaries, in BoundingBox boundingBox, int maxSplitDepth) : this(boundaries, boundingBox, BoxSplitType.Z, maxSplitDepth) { }
     }
 
     public class BSPTree
     {
-        private readonly BSPTreeNode _start;
+        public BSPTreeNode Start { get; }
 
-        public BSPTree(IEnumerable<ICollideable> objects)
+        public BSPTree(IEnumerable<ICollideable> objects, in BoundingBox boundingBox, int maxSplitDepth) =>
+            Start = new BSPTreeNode(objects, boundingBox, maxSplitDepth);
+
+        public List<ICollideable> Intersects(BoundingSphere sphere)
         {
-            var compile = new List<Polygon>();
-            foreach (var @object in objects)
-                compile.AddRange(@object.Polygones);
+            var result = new List<ICollideable>();
 
-            _start = new BSPTreeNode(compile.ToArray());
-        }
-
-        public List<Polygon> Collides(in BoundingSphere sphere)
-        {
-            var node = _start;
-
-            while (true)
+            void Intersects(BSPTreeNode node)
             {
-                var dot = node.Plane.DotCoordinate(node.PointOnPlane - sphere.Center);
-                BSPTreeNode next;
-
-                if (System.Math.Abs(dot) <= sphere.Radius)
-                    next = null;
-                else if (dot < 0)
-                    next = node.Front;
-                else
-                    next = node.Back;
-
-                if (next is null)
-                {
-                    var list = new List<Polygon>();
-                    foreach (var polygon in node.Polygones)
-                    {
-                        if (Extensions.Distance(sphere.Center, polygon.Plane) <= sphere.Radius)
-                            list.Add(polygon);
-                    }
-
-                    return list;
-                }
-                node = next;
-            }
-        }
-
-        [System.Obsolete("Incomplete")]
-        public (Vector3 point, Polygon polygon)? Collides(in Ray ray)
-        {
-            static (float dist, Polygon polygon)? Distance(in Ray ray, BSPTreeNode node, float planeDist, bool findMin)
-            {
-                if (node == null)
-                    return null;
-
                 while (true)
                 {
-                    var dist = Extensions.IntersectionDistance(ray, node.PointOnPlane, node.Plane.Normal);
-                    BSPTreeNode next = null;
-                    var dot = Vector3.Dot(ray.Position - node.PointOnPlane, node.Plane.Normal);
-                    if (dist is null || dist < 0)
+                    foreach (var obj in node.UnsplittableObjects)
+                        if (obj.CollisionEnabled && obj.Boundary.IntersectsOrInside(sphere))
+                            result.Add(obj);
+
+                    if (node.Front is null || node.Back is null)
                     {
-                        if (dot < 0)
-                            next = node.Front;
-                        else
-                            next = node.Back;
+                        foreach (var obj in node.Objects)
+                            if (obj.CollisionEnabled && obj.Boundary.IntersectsOrInside(sphere))
+                                result.Add(obj);
+
+                        break;
                     }
+
+                    if (Abs(node.SplittingPlane.Distance(sphere.Center)) <= sphere.Radius)
+                    {
+                        Intersects(node.Front);
+                        Intersects(node.Back);
+
+                        break;
+                    }
+
+                    if (node.SplittingPlane.DotCoordinate(sphere.Center) >= 0)
+                        node = node.Front;
                     else
-                    {
-                        var frontToRay = dot < 0 ? node.Front : node.Back;
-                        var backToRay = dot < 0 ? node.Back : node.Front;
-
-                        var fr = Distance(ray, frontToRay, dist.Value, true);
-                        var br = Distance(ray, backToRay, dist.Value, false);
-
-                        if (fr == null)
-                            return br;
-                        if (br == null)
-                            return fr;
-                        if (fr.Value.dist < br.Value.dist)
-                            return fr;
-                        else
-                            return br;
-                    }
-
-                    if (next is null)
-                    {
-                        (float dist, Polygon pol)? min = null;
-
-                        foreach (var polygon in node.Polygones)
-                        {
-                            var ds = Extensions.IntersectionDistance(ray, polygon.A, polygon.Plane.Normal);
-                            if (ds != null && ds.Value >= 0 && (min == null || ds.Value < min.Value.dist) && Extensions.IsInsideTriangle(polygon.A, polygon.B, polygon.C, ray.Position + ds.Value * ray.Direction))
-                                    min = (ds.Value, polygon);
-                        }
-
-                        return min;
-                    }
-
-                    node = next;
+                        node = node.Back;
                 }
             }
 
-            var ret = Distance(ray, _start, -1f, true);
-            if (ret != null)
-                return (ray.Position + ret.Value.dist * ray.Direction, ret.Value.polygon);
-            else
-                return null;
+            Intersects(Start);
+
+            return result;
         }
     }
 }

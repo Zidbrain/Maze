@@ -6,16 +6,16 @@ using Maze.Graphics;
 
 namespace Maze.Engine
 {
-    public class Square : IDrawable, ICollideable
+    public class Square : CollideableLevelObject
     {
         private static readonly Vector3[] s_pos =
         {
-            new Vector3(-0.5f, 0f, -0.5f),
-            new Vector3(-0.5f, 0f, 0.5f),
-            new Vector3(0.5f, 0f, 0.5f),
-            new Vector3(0.5f, 0f, 0.5f),
-            new Vector3(0.5f, 0f, -0.5f),
-            new Vector3(-0.5f, 0f, -0.5f),
+            new Vector3(-1f, 0f, -1f),
+            new Vector3(-1f, 0f, 1f),
+            new Vector3(1f, 0f, 1f),
+            new Vector3(1f, 0f, 1f),
+            new Vector3(1f, 0f, -1f),
+            new Vector3(-1f, 0f, -1f),
         };
 
         private static readonly VertexBuffer s_buffer;
@@ -24,45 +24,51 @@ namespace Maze.Engine
         {
             var vertexes = new CommonVertex[6];
             for (var i = 0; i < vertexes.Length; i++)
-                vertexes[i] = new CommonVertex(s_pos[i], new Vector2(s_pos[i].X + 0.5f, s_pos[i].Z + 0.5f), Vector3.Up, Vector3.Right);
+                vertexes[i] = new CommonVertex(s_pos[i], new Vector2((s_pos[i].X + 1f) / 2f, (s_pos[i].Z + 1f) / 2f), Vector3.Up, Vector3.Right);
 
             s_buffer = new VertexBuffer(Maze.Instance.GraphicsDevice, typeof(CommonVertex), 6, BufferUsage.WriteOnly);
             s_buffer.SetData(vertexes);
         }
 
-        public Matrix Transform { get; set; }
+        private Matrix _transform;
+        public Matrix Transform
+        {
+            get => _transform;
+            set
+            {
+                _transform = value;
+                _boundary.Basis = _transform;
+            }
+        }
 
-        public Vector3 Position { get; set; }
-        public Vector2 Size { get; set; } = Vector2.One;
+        public override void Update(GameTime time) { }
+
+        private readonly BoundarySquare _boundary;
+        public override BoundarySquare Boundary => _boundary;
+
+        public override Vector3 Position
+        {
+            get => Transform.Translation;
+            set
+            {
+                _transform.Translation = value;
+                _boundary.Basis = _transform;
+            }
+        }
+
         public Color Color { get; set; } = Color.White;
-
-        public IShaderState ShaderState { get; set; }
 
         public Texture2D Texture { get; set; }
         public Texture2D Normal { get; set; }
 
-        public IEnumerable<Polygon> Polygones
-        {
-            get
-            {
-                var ret = new Polygon[2];
-                for (var i = 0; i < 2; i++)
-                {
-                    var buf = new Vector3[3];
-                    for (var j = 0; j < 3; j++)
-                        buf[j] = Vector3.Transform(s_pos[i * 3 + j], Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position));
-
-                    ret[i] = new Polygon(buf);
-                }
-
-                return ret;
-            }
-        }
-
         private readonly MeshInfo _info;
 
-        public Square(Matrix basis, Texture2D texture, Texture2D normal)
+        public Square(Level level, Matrix basis, Texture2D texture, Texture2D normal) : base(level)
         {
+            basis.Up = Vector3.Normalize(Vector3.Cross(basis.Right, basis.Backward));
+
+            _boundary = new BoundarySquare(basis);
+
             Transform = basis;
             Texture = texture;
             Normal = normal;
@@ -70,13 +76,13 @@ namespace Maze.Engine
             _info = new MeshInfo(texture, normal, s_buffer);
         }
 
-        public void Draw()
+        public override void Draw()
         {
             if (ShaderState is null)
                 ShaderState = new StandartShaderState();
 
             if (ShaderState is TransformShaderState state)
-                state.Transform = Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position);
+                state.Transform = Transform;
 
             if (ShaderState is StandartShaderState standartState)
             {
@@ -88,7 +94,7 @@ namespace Maze.Engine
             Maze.Instance.DrawVertexes(s_buffer, ShaderState);
         }
 
-        public void Draw(AutoMesh mesh) =>
-            mesh.Add(_info, Matrix.CreateScale(Size.X, 1f, Size.Y) * Transform * Matrix.CreateTranslation(Position));
+        public override void Draw(AutoMesh mesh) =>
+            mesh.Add(_info, Transform);
     }
 }

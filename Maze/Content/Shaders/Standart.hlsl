@@ -20,7 +20,7 @@ Pixel StandartVS(in Vertex input)
     pixel.WorldPosition = mul(input.Position, _transform).xyz;
     pixel.Position = mul(float4(pixel.WorldPosition, 1), _matrix);
     pixel.TextureCoordinate = input.TextureCoordinate;
-    pixel.TBN = ConstructTBN(pixel.WorldPosition, input.Normal, input.Tangent, (float3x4) _transform);
+    pixel.TBN = ConstructTBN(pixel.WorldPosition, input.Normal, input.Tangent, (float3x3) _transform);
     
     return pixel;
 }
@@ -68,14 +68,20 @@ float4 RasterizePS(in DefferedPixel input) : SV_Target
 
 PARAMETER(Texture2D _mask);
 
-float4 GammaPS(in DefferedPixel input) : SV_Target
+float4 MaskPS(in DefferedPixel input) : SV_Target
 {
     float4 mask = _mask.Sample(clampSampler, input.TextureCoordinate);
-    return pow(RasterizePS(input) * _color * mask.r, 1 / _gamma);
+    return RasterizePS(input) * _color * mask.r;
+}
+
+float4 GammaPS(in DefferedPixel input) : SV_Target
+{
+    return pow(RasterizePS(input), 1 / _gamma);
 }
 
 TECHNIQUE(Standart, StandartVS, StandartPS);
 TECHNIQUE(Rasterize, RasterizeVS, RasterizePS);
 TECHNIQUE(Gamma, RasterizeVS, GammaPS);
+TECHNIQUE(Mask, RasterizeVS, MaskPS);
 
 #endif

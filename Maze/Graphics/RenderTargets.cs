@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework.Graphics;
 
 namespace Maze.Graphics
 {
@@ -21,7 +20,7 @@ namespace Maze.Graphics
             Normal = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
             Position = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Vector4, DepthFormat.Depth24Stencil8, 0, RenderTargetUsage.PreserveContents);
 
-            United = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.PreserveContents);
+            United = new RenderTarget2D(Maze.Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Vector4, DepthFormat.None, 2, RenderTargetUsage.PreserveContents);
 
             Bindings = new RenderTargetBinding[]
             {

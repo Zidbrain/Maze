@@ -16,10 +16,10 @@ namespace Maze.Engine
         public bool Pressed(Keys key) =>
             _currentState.IsKeyDown(key);
 
-        public bool CompleteOnce(Keys key) =>
+        public bool ChangedUp(Keys key) =>
             _oldState.IsKeyDown(key) && _currentState.IsKeyUp(key);
 
-        public bool PressedOnce(Keys key) =>
+        public bool ChangedDown(Keys key) =>
             _oldState.IsKeyUp(key) && _currentState.IsKeyDown(key);
 
     }

@@ -18,7 +18,7 @@ namespace Maze.Graphics.Shaders
         protected LightShaderState(Texture2D colors, Texture2D normals, Texture2D positions) : base(colors) =>
             (Normal, Position) = (normals, positions);
 
-        public override abstract EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
+        public abstract override EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
 
         public override void Apply(EffectParameterCollection parameters)
         {
@@ -103,28 +103,15 @@ namespace Maze.Graphics.Shaders
 
     public class WriteDepthShaderState : TransformShaderState
     {
-        public Vector3 LightPosition { get; set; }
+        public override void Apply(EffectParameterCollection parameters) => base.Apply(parameters);
 
-        public override void Apply(EffectParameterCollection parameters)
-        {
-            base.Apply(parameters);
-            parameters["_lightPosition"].SetValue(LightPosition);
-        }
-
-        public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
+        protected override EffectTechnique GetTechniqueForShadingModel(EffectTechniqueCollection techniques) =>
             techniques["WriteDepth"];
     }
 
     public class WriteDepthInstancedShaderState : InstancedShaderState
     {
-        public Vector3 LightPosition { get; set; }
-
-
-        public override void Apply(EffectParameterCollection parameters)
-        {
-            base.Apply(parameters);
-            parameters["_lightPosition"].SetValue(LightPosition);
-        }
+        public override void Apply(EffectParameterCollection parameters) => base.Apply(parameters);
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
             techniques["WriteDepthInstanced"];

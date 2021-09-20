@@ -19,12 +19,13 @@ namespace Maze.Engine
 
         public Level Level { get; }
 
-        public virtual IShaderState ShaderState { get; set; }
+        public virtual TransformShaderState ShaderState { get; set; }
+
+        public abstract IBoundary Boundary { get; }
 
         public bool DrawToMesh { get; set; } = true;
 
-        public LevelObject(Level level) =>
-            Level = level;
+        public LevelObject(Level level) => Level = level;
 
         public abstract void Update(GameTime time);
 
@@ -32,18 +33,15 @@ namespace Maze.Engine
 
         public abstract void Draw(AutoMesh mesh);
 
-        public abstract bool Intersects(BoundingFrustum frustum);
+        public virtual Vector3 Position { get; set; }
 
-        public abstract bool Intersects(in BoundingSphere sphere);
-
-        public virtual Vector3 Position { get; set; } 
+        public bool EnableOcclusionCulling { get; set; } = true;
     }
 
     public abstract class CollideableLevelObject : LevelObject, ICollideable
     {
         public CollideableLevelObject(Level level) : base(level) { }
 
-        public bool EnableCollision { get; set; } = true;
-        public abstract IEnumerable<Polygon> Polygones { get; }
+        public bool CollisionEnabled { get; set; } = true;
     }
 }

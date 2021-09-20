@@ -23,6 +23,8 @@ float4 SSAOPS(in DefferedPixel input) : SV_Target
     float3x3 TBN = float3x3(tangent, cross(normal, tangent), normal);
     
     float occlusion = 0.0;
+
+    int kernels = KERNELS_COUNT;
     
     [unroll(KERNELS_COUNT)]
     for (int i = 0; i < KERNELS_COUNT; i++)
@@ -33,13 +35,20 @@ float4 SSAOPS(in DefferedPixel input) : SV_Target
         float4 csKernelPos = mul(float4(worldKernelPos, 1.0), _matrix);
         csKernelPos.xyz /= csKernelPos.w;
         csKernelPos.xy = csKernelPos.xy * float2(0.5, -0.5) + float2(0.5, 0.5);
-        csKernelPos.xy = clamp(csKernelPos.xy, float2(0, 0), float2(1, 1));
-        
+        if (csKernelPos.x < 0 || csKernelPos.x > 1 || csKernelPos.y < 0 || csKernelPos.y > 1) {
+            kernels--;
+            continue;
+        }
+
+        if (distance(position, _positionBuffer.Sample(borderSampler, csKernelPos.xy).xyz) > _SSAORadius) {
+            kernels--;
+            continue;
+        }
+
         float sampleDepth = _depthBuffer.Sample(clampSampler, csKernelPos.xy).r;
-        occlusion += (sampleDepth <= csKernelPos.z ? 1.0 : 0.0) * smoothstep(0.0, 1.0, _SSAORadius / distance(position, _positionBuffer.Sample(borderSampler, csKernelPos.xy).xyz)); // works wrong on edges
+        occlusion += ((sampleDepth - csKernelPos.z) <= -0.000003 ? 1.0 : 0.0); // works wrong on edges
     }
     occlusion = 1.0 - (occlusion / KERNELS_COUNT);
-    occlusion = pow(occlusion, 1);
     
     return float4(occlusion, 0, 0, 1.0);
 }

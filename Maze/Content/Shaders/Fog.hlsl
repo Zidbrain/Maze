@@ -12,17 +12,14 @@ float4 FogPS(in DefferedPixel input) : COLOR0
 {
     float4 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate);
     
-    if (position.a == 0)
-        return _fogColor;
-    
-    float4 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate);
+    float4 color = float4(_fogColor.r, _fogColor.g, _fogColor.b, 0);//_texture.Sample(anisotropicSampler, input.TextureCoordinate);
 
     float dist = distance(position.xyz, _cameraPosition);
     if (dist >= _fogStart)
     {
         if (dist > _fogEnd)
             dist = _fogEnd;
-        return lerp(color, _fogColor, (dist - _fogStart) / (_fogEnd - _fogStart));
+        color.a = (dist - _fogStart) / (_fogEnd - _fogStart);
     }
     
     return color;

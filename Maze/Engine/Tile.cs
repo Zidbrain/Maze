@@ -51,19 +51,11 @@ namespace Maze.Engine
 
         public bool LightEnabled { get; set; } = true;
 
-        public override IEnumerable<Polygon> Polygones
-        {
-            get
-            {
-                var ret = new List<Polygon>();
-                foreach (var side in _sides)
-                    ret.AddRange(side.Polygones);
-                return ret;
-            }
-        }
+        public override BoundaryBox Boundary => 
+            new(Position - new Vector3(Size), Position + new Vector3(Size));
 
-        private IShaderState _shaderState;
-        public override IShaderState ShaderState
+        private TransformShaderState _shaderState;
+        public override TransformShaderState ShaderState
         {
             get => _shaderState;
             set
@@ -78,20 +70,22 @@ namespace Maze.Engine
 
         public Direction ExcludedDirections { get; }
 
-        public Tile(Level level, float size, Direction excludedDirections, bool hasCeiling = true) : base(level)
+        public Tile(Level level, float size, Direction excludedDirections, bool hasCeiling = true, bool hasFloor = true) : base(level)
         {
-            _sides = hasCeiling ? new List<Square>()
-            {
-                new Square(Matrix.Identity, level.Textures.Floor, level.Textures.FloorNormal) { Position = new Vector3(0f, -size / 2f, 0f), Size = new Vector2(size) },
-                new Square(Matrix.Identity, level.Textures.Ceiling, level.Textures.CeilingNormal) { Position = new Vector3(0f, size / 2f, 0f), Size = new Vector2(size) },
-            } : new List<Square>();
+            _sides = new List<Square>();
+            var sizemat = Matrix.CreateScale(size, 1f, size);
+
+            if (hasFloor)
+                _sides.Add(new Square(level, sizemat, level.Textures.Floor, level.Textures.FloorNormal) { Position = new Vector3(0f, -size, 0f) });
+            if (hasCeiling)
+                _sides.Add(new Square(level, sizemat, level.Textures.Ceiling, level.Textures.CeilingNormal) { Position = new Vector3(0f, size, 0f) });
 
             var add = new[]
             {
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, -size / 2f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(size / 2f, 0f, 0f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, size / 2f), Size = new Vector2(size) },
-                new Square(Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(-size / 2f, 0f, 0f), Size = new Vector2(size) },
+                new Square(level, sizemat * Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, -size) },
+                new Square(level, sizemat * Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(size, 0f, 0f) },
+                new Square(level, sizemat * Matrix.CreateRotationX(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(0f, 0f, size) },
+                new Square(level, sizemat * Matrix.CreateRotationY(MathHelper.PiOver2) * Matrix.CreateRotationZ(MathHelper.PiOver2), level.Textures.Wall, level.Textures.WallNormal) { Position = new Vector3(-size, 0f, 0f) },
             };
 
             for (var i = 0; i < 4; i++)
@@ -115,18 +109,6 @@ namespace Maze.Engine
         }
 
         public override void Update(GameTime time) { }
-
-        public override bool Intersects(BoundingFrustum frustum)
-        {
-            var intersection = frustum.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
-            return intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects;
-        }
-
-        public override bool Intersects(in BoundingSphere sphere)
-        {
-            var intersection = sphere.Contains(new BoundingBox(Position - new Vector3(Size / 2f), Position + new Vector3(Size / 2f)));
-            return intersection == ContainmentType.Contains || intersection == ContainmentType.Intersects;
-        }
 
         public override void Draw()
         {

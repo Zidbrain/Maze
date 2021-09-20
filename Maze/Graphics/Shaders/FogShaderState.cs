@@ -18,7 +18,7 @@ namespace Maze.Graphics.Shaders
             parameters["_fogColor"].SetValue(FogColor.ToVector4());
         }
 
-        public FogShaderState(Texture2D colors, Texture2D positions) : base(colors) =>
+        public FogShaderState(Texture2D positions) : base() =>
             Position = positions;
 
         public Vector3 CameraPosition { get; set; }

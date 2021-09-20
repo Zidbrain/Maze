@@ -7,236 +7,306 @@
 
 #define MAX_LIGHTS 5
 
-cbuffer LightData : register(b1)
-{
-    PARAMETER(float3 _lightingPosition[MAX_LIGHTS]);
-    PARAMETER(float _lightingRadius[MAX_LIGHTS]);
-    PARAMETER(float4 _lightingColor[MAX_LIGHTS]);
-    PARAMETER(float _diffusePower[MAX_LIGHTS]);
-    PARAMETER(float _hardness[MAX_LIGHTS]);
-    PARAMETER(float _specularHardness[MAX_LIGHTS]);
-    PARAMETER(float _specularPower[MAX_LIGHTS]);
+PARAMETER(float3 _lightingPosition[MAX_LIGHTS]);
+PARAMETER(float _lightingRadius[MAX_LIGHTS]);
+PARAMETER(float4 _lightingColor[MAX_LIGHTS]);
+PARAMETER(float _diffusePower[MAX_LIGHTS]);
+PARAMETER(float _hardness[MAX_LIGHTS]);
+PARAMETER(float _specularHardness[MAX_LIGHTS]);
+PARAMETER(float _specularPower[MAX_LIGHTS]);
 
-    PARAMETER(int _lightsCount);
-    
-    PARAMETER(Texture2DArray _shadowMaps);
-    PARAMETER(int _shadowsEnabled[MAX_LIGHTS]);
-};
+PARAMETER(int _lightsCount);
 
-    PARAMETER(Texture2D _SSAOMap);
-    PARAMETER(float _diversionAngle[MAX_LIGHTS]);
-    PARAMETER(float3 _direction[MAX_LIGHTS]);
-    PARAMETER(matrix _directionMatrix[MAX_LIGHTS]);
+PARAMETER(Texture2DArray _shadowMaps);
+PARAMETER(int _shadowsEnabled[MAX_LIGHTS]);
 
-    PARAMETER(float4x4 _lightViewMatrices[6]);
-    PARAMETER(int _lightViewLength);
-    PARAMETER(Texture2DArray _lightShadows);
-    PARAMETER(float3 _lightPosition);
+PARAMETER(Texture2D _SSAOMap);
+PARAMETER(float _diversionAngle[MAX_LIGHTS]);
+PARAMETER(float3 _direction[MAX_LIGHTS]);
+//PARAMETER(matrix _directionMatrix[MAX_LIGHTS]);
+
+PARAMETER(TextureCube _lightShadows);
+PARAMETER(float3 _lightPosition);
 
 float sqr(in float value)
 {
-    return value * value;
+	return value * value;
 }
 
-float4 SpotLightPS(in DefferedPixel input) : COLOR
+float4 LightingPS(in DefferedPixel input) : SV_Target
 {
-    float4 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate);
-    float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
-    float3 normal = GetNormal(input.TextureCoordinate);
-    
-    [unroll(MAX_LIGHTS)]
-    for (int i = 0; i < _lightsCount; i++)
-    {
-        float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
-        
-        float3 lightDir = _lightingPosition[i] - position;
-        float dist = length(lightDir);
-        float csa = cos(_diversionAngle[i]);   
-        
-        lightDir /= dist;
-        
-        float3 x0 = mul(float4(position, 1), _directionMatrix[i]).xyz;
-        float3 s = mul(float4(_cameraPosition - position, 1), _directionMatrix[i]).xyz;
-                        
-        float angle = angleCos(_direction[i], lightDir);
-        bool isIn = false;
-        if (angle > csa && dist <= _lightingRadius[i])
-        {
-            float diffuseValue = saturate(dot(normal, lightDir)) * pow(_diversionAngle[i] - acos(angle), 1 / _hardness[i]) / _diversionAngle[i];
-            float3 halfVector = normalize(lightDir + _cameraPosition - position);
-            float specularValue = pow(saturate(dot(normal, halfVector)), _specularHardness[i]);
-    
-            color.rgb += color.rgb * lerp(diffuseValue * _diffusePower[i] + specularValue * _specularPower[i], float3(0, 0, 0), pow(dist / _lightingRadius[i], _hardness[i])) * _lightingColor[i].rgb * shadowValue;
-            isIn = true;
-        }
-        
-        float a = s.z * s.z - dot(s, s) * csa * csa;
-        float b = x0.z * s.z - dot(x0, s) * csa * csa;
-        float c = x0.z * x0.z - dot(x0, x0) * csa * csa;
-        
-        float d = b * b - a * c;
-        if (d >= 0)
-        {
-            float t1 = (-b + sqrt(d)) / a;
-            float t2 = (-b - sqrt(d)) / a;
-            float3 s1 = x0 + s * t1;
-            float3 s2 = x0 + s * t2;          
-            
-            if ((t1 >= 0 && t1 <= 1 && s1.z < 0 && length(s1) <= _lightingRadius[i]) ||
-                 (t2 >= 0 && t2 <= 1 && s2.z < 0 && length(s2) <= _lightingRadius[i]) || isIn)
-            {
-                //float v = abs(t2 - t1);
-                ////if (isIn)
-                ////    v = max(abs(t1), abs(t2));
-                //v = 2 * atan(v) / PI;
-                
-                float v =  1 - length(x0 - s * (dot(x0, s) / lengthSqr(s))) / _lightingRadius[i];
-                
-                float value =  pow(v, 1 / _hardness[i]) * _diffusePower[i];
-                
-                //if (isIn)
-                //    value = lerp(value, float3(0, 0, 0), pow(dist / _lightingRadius[i], _hardness[i]));
-                
-                color.rgb += color.rgb * value * _lightingColor[i].rgb * shadowValue;
-            }
-        }
-    }
-    
-    return color;
+	float4 color = float4(0,0,0,1);
+	float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
+	float3 normal = GetNormal(input.TextureCoordinate);
+
+	[unroll(MAX_LIGHTS)]
+	for (int i = 0; i < _lightsCount; i++)
+	{
+		float3 lightDir = _lightingPosition[i] - position;
+		float dist = length(lightDir);
+
+		if (dist > _lightingRadius[i])
+			continue;
+
+		lightDir /= dist;
+
+		float diffuseValue = saturate(dot(normal, lightDir));
+		float3 halfVector = normalize(lightDir + _cameraPosition - position);
+		float specularValue = pow(saturate(dot(normal, halfVector)), _specularHardness[i]);
+
+		float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
+
+		color.rgb += (diffuseValue * _diffusePower[i] + specularValue * _specularPower[i]) * (1 - pow(dist / _lightingRadius[i], _hardness[i])) * _lightingColor[i].rgb * shadowValue;
+	}
+
+	return color;
 }
 
-float4 LightingPS(in DefferedPixel input) : COLOR
+float4 WriteShadowVS(in float4 position, in float4x4 transform, in float3 normal)
 {
-    float4 color = _texture.Sample(anisotropicSampler, input.TextureCoordinate);
-    float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
-    float3 normal = GetNormal(input.TextureCoordinate);
-    
-    [unroll(MAX_LIGHTS)]
-    for (int i = 0; i < _lightsCount; i++)
-    {
-        float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
-        
-        float3 lightDir = _lightingPosition[i] - position;
-        float dist = length(lightDir);
-        
-        lightDir /= dist;
-        
-        if (dist > _lightingRadius[i])
-            continue;
-    
-        float diffuseValue = saturate(dot(normal, lightDir));
-        float3 halfVector = normalize(lightDir + _cameraPosition - position);
-        float specularValue = pow(saturate(dot(normal, halfVector)), _specularHardness[i]);
-    
-        color.rgb += color.rgb * lerp(diffuseValue * _diffusePower[i] + specularValue * _specularPower[i], float3(0, 0, 0), pow(dist / _lightingRadius[i], _hardness[i])) * _lightingColor[i].rgb * shadowValue;
-    }
-    
-    return color;
+	float3 world = mul(position, transform).xyz;
+
+	//normal = normalize(mul(normal, (float3x3) transform).xyz);
+	//OrientVector(normal, _lightPosition, world);
+	//world -= normal * 0.00;
+
+	return mul(float4(world, 1), _matrix);
 }
 
-Pixel WriteShadowVS(in float4 position, in float4x4 transform, in float3 normal)
+float4 WriteShadowVSInstanced(in InstancedVertexInput input) : SV_Position
 {
-    Pixel ret = (Pixel) 0;
-    
-    ret.WorldPosition = mul(position, transform).xyz;
-  
-    //normal = normalize(mul(normal, (float3x4) transform).xyz);
-    //OrientVector(normal, _lightPosition, ret.WorldPosition);
-    //ret.WorldPosition -= normal * 0.001;
-    
-    ret.Position = mul(float4(ret.WorldPosition, 1), _matrix);
-    
-    return ret;
+	return WriteShadowVS(input.Position, _matrices[input.Instance], input.Normal);
 }
 
-Pixel WriteShadowVSInstanced(in InstancedVertexInput input)
+float4 WriteShadowVSStandart(in Vertex input) : SV_Position
 {
-    return WriteShadowVS(input.Position, _matrices[input.Instance], input.Normal);
+	return WriteShadowVS(input.Position, _transform, input.Normal);
 }
 
-Pixel WriteShadowVSStandart(in Vertex input)
+PARAMETER(bool _static);
+
+float4 WriteShadow(in float4 input : SV_Position) : SV_Target
 {
-    return WriteShadowVS(input.Position, _transform, input.Normal);
+	float result = input.z;
+
+	//if (_static) 
+	//{
+	//	float2 uv = input.xy / 1024;
+	//	uv = float2(uv.x, uv.y);
+	//	float depth = _texture.Sample(wrapSampler, uv).r;
+
+	//	if (depth < result)
+	//		result = depth;
+	//}
+
+	return float4(result, 0, 0, 1);
 }
 
-float4 WriteShadow(in Pixel input) : SV_Target
-{
-    //return float4(1 / length(input.WorldPosition - _lightPosition), 0, 0, 1);
-    return float4(input.Position.z, 0, 0, 1);
+PARAMETER(float _farPlane);
+PARAMETER(float _nearPlane);
+
+float VectorToDepth(in float3 vec, out float3 normal) {
+	float3 AbsVec = abs(vec);
+	float LocalZcomp = max(AbsVec.x, max(AbsVec.y, AbsVec.z));
+
+	if (LocalZcomp == AbsVec.x)
+		normal = float3(1, 0, 0);
+	else if (LocalZcomp == AbsVec.y)
+		normal = float3(0, 1, 0);
+	else normal = float3(0, 0, 1);
+
+	float f = _farPlane;
+	float n = _nearPlane;
+
+	float NormZComp = (f + n) / (f - n) - (2 * f * n) / (f - n) / LocalZcomp;
+	return (NormZComp + 1.0) * 0.5;
 }
 
-uint GetCubemapFace(in float3 vec)
-{
-    float maxValue = max(max(abs(vec.x), abs(vec.y)), abs(vec.z));
+SamplerComparisonState shadowSampler : register(s1);
 
-    if (vec.x == maxValue)
-        return 0;
-    else if (-vec.x == maxValue)
-        return 1;
-    else if (vec.y == maxValue)
-        return 2;
-    else if (-vec.y == maxValue)
-        return 3;
-    else if (vec.z == maxValue)
-        return 4;
-    else
-        return 5;
-}
-
-float GetShadowValue(in float3 vecToPixel, in float4 position)
+float GetShadowValue(in float3 vecToPixel)
 {
-    uint sizeX, sizeY, elements;
-    _lightShadows.GetDimensions(sizeX, sizeY, elements);
-    
-    float2 step = float2(1.0 / sizeX, 1.0 / sizeY);
-    
-    uint face = 0;
-    if (_lightViewLength == 6)
-        face = GetCubemapFace(vecToPixel);
-    
-    float4 lightViewCoordinates = mul(position, _lightViewMatrices[face]);
-    
-    if (lightViewCoordinates.z < 0)
-        return 1;
-    
-    float3 projCoords = lightViewCoordinates.xyz / lightViewCoordinates.w;
-    
-    float2 uv = float2(0.5 * projCoords.x + 0.5, -0.5 * projCoords.y + 0.5);
-    if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1)
-        return 1;
-    
-   float depthPixel = projCoords.z;
-    
-    float value = 0;
-    
-    [unroll(3)]
-    for (int y = -1; y <= 1; y++)
-    {
-        [unroll(3)]
-        for (int x = -1; x <= 1; x++)
-        {
-            float2 offsets = float2(x, y) * step;
-            float2 newUV = uv + offsets;
-            float depthLight = _lightShadows.Sample(borderSampler, float3(newUV, face)).r;
-            
-            if (depthLight - depthPixel > -0.0003)
-                value += 1;
-        }
-    }
- 
-    return value / 9;
+	const float3 sampleOffsetDirections[20] =
+	{
+	   float3(1,  1,  1), float3(1, -1,  1), float3(-1, -1,  1), float3(-1,  1,  1),
+	   float3(1,  1, -1), float3(1, -1, -1), float3(-1, -1, -1), float3(-1,  1, -1),
+	   float3(1,  1,  0), float3(1, -1,  0), float3(-1, -1,  0), float3(-1,  1,  0),
+	   float3(1,  0,  1), float3(-1,  0,  1), float3(1,  0, -1), float3(-1,  0, -1),
+	   float3(0,  1,  1), float3(0, -1,  1), float3(0, -1, -1), float3(0,  1, -1)
+	}; // Cant make static because monogame sets this array 0 for some reason
+
+	float3 normal = float3(0, 0, 0);
+	float depthPixel = VectorToDepth(vecToPixel, normal);
+	float3 tangent = float3(0, 0, 0);
+	[unroll]
+	for (int m = 0; m < 3; m++)
+		if (normal[m] != 0) {
+			int n = 0;
+			if (m != 2) n++;
+			tangent[n] = normal[m];
+			tangent[m] = -normal[n];
+			tangent = normalize(tangent);
+			break;
+		}
+	float3 binormal = cross(normal, tangent);
+	float3x3 TBN = float3x3(tangent, binormal, normal);
+
+	//return _lightShadows.SampleCmpLevelZero(shadowSampler, vecToPixel, depthPixel).r;
+	float value = 0;
+	float radius = depthPixel * 0.05;
+
+	for (int i = 0; i < 20; i++)
+		value += _lightShadows.SampleCmpLevelZero(shadowSampler, vecToPixel + mul(float3(sampleOffsetDirections[i].xz, 0), TBN) * radius, depthPixel).r;
+
+	return saturate(value / 20);
 }
 
 float4 ShadowToCamera(in DefferedPixel input) : SV_Target
 {
-    float4 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate);
-    float3 vec = position.xyz - _lightPosition;
-    
-    float value = GetShadowValue(vec, position);
-    return float4(value, 0, 0, 1);
+	float4 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate);
+	float3 vec = position.xyz - _lightPosition;
+
+	float value = GetShadowValue(vec);
+	return float4(value, 0, 0, 1);
+}
+
+PARAMETER(Texture2D _spotLightDepthMap);
+PARAMETER(float3 _lightDirection);
+PARAMETER(float _lightAngle);
+PARAMETER(float _lightReach);
+PARAMETER(float _lightHardness);
+PARAMETER(float _lightSpecularHardness);
+PARAMETER(float _lightDiffusePower);
+PARAMETER(float _lightSpecularPower);
+
+struct Ray {
+	float3 Direction;
+	float3 Position;
+};
+
+#define RAY_STEPS 50
+#define G_SCATTERING 0.8
+
+float ComputeScattering(float lightDotView)
+{
+	float result = 1.0f - G_SCATTERING * G_SCATTERING;
+	result /= (4.0f * PI * pow(1.0f + G_SCATTERING * G_SCATTERING - (2.0f * G_SCATTERING) * lightDotView, 1.5f));
+	return result;
+}
+
+float SpotlightShadowValue(in DefferedPixel input) 
+{
+	float4 position = _positionBuffer.Sample(borderSampler, input.TextureCoordinate);
+
+	Ray ray;
+	ray.Direction = _cameraPosition - position.xyz;
+	ray.Position = position.xyz;
+	float value = 0;
+
+	[unroll(RAY_STEPS)]
+	for (int i = 0; i < RAY_STEPS; i++)
+	{
+		position = float4(ray.Position + ray.Direction / RAY_STEPS * i, 1);
+		float3 vec = position.xyz - _lightPosition;
+		float len = length(vec);
+
+		if (len > _lightReach)
+			continue;
+
+		vec.xyz /= len;
+
+		float angle = dot(vec, _lightDirection) / length(_lightDirection);
+		float lightCos = cos(_lightAngle);
+		float diff = angle - lightCos;
+
+		if (diff < 0)
+			continue;
+
+		if (i == 0) {
+			float3 normal = GetNormal(input.TextureCoordinate);
+
+			float diffuseValue = saturate(dot(normal, -vec));
+			float3 halfVector = normalize(vec + _cameraPosition - position.xyz);
+			float specularValue = pow(saturate(dot(normal, halfVector)), _lightSpecularHardness);
+
+			position = mul(position, _matrix);
+			position.xyz /= position.w;
+
+			float2 uv = float2(0.5 * position.x + 0.5, -0.5 * position.y + 0.5);
+
+			value += (diffuseValue * _lightDiffusePower + specularValue * _lightSpecularPower) * (1 - pow(1 - diff / (1 - lightCos), _lightHardness)) * _spotLightDepthMap.SampleCmpLevelZero(shadowSampler, uv, position.z).r;
+			continue;
+		}
+
+		position = mul(position, _matrix);
+		position.xyz /= position.w;
+
+		float2 uv = float2(0.5 * position.x + 0.5, -0.5 * position.y + 0.5);
+
+		float radius = 1.0 / 1024.0 * position.z;
+
+		//for (int x = -2; x <= 2; x++)
+		//	for (int y = -2; y <= 2; y++) {
+		//		value += _spotLightDepthMap.SampleCmpLevelZero(shadowSampler, uv + float2(x, y) * radius, position.z).r;
+		//	}
+		value += _spotLightDepthMap.SampleCmpLevelZero(shadowSampler, uv, position.z).r * ComputeScattering(angle) * (1 - pow(1 - diff / (1 - lightCos), _lightHardness)) * 5;
+	}
+	
+	return value / RAY_STEPS;
+}
+
+float4 SpotLightPS(in DefferedPixel input) : SV_Target
+{
+	float4 color = float4(0,0,0,1);
+	float3 position = _positionBuffer.Sample(clampSampler, input.TextureCoordinate).rgb;
+	float3 normal = GetNormal(input.TextureCoordinate);
+
+	[unroll(MAX_LIGHTS)]
+	for (int i = 0; i < _lightsCount; i++)
+	{
+		float shadowValue = (_shadowsEnabled[i] ? _shadowMaps.Sample(wrapSampler, float3(input.TextureCoordinate, i)).r : 1);
+
+		if (shadowValue == 0.0)
+			continue;
+
+		//float3 lightDir = _lightingPosition[i] - position;
+		//float dist = length(lightDir);
+
+		//if (dist > _lightingRadius[i]) {
+		//	color.rgb += _lightingColor[i].rgb * shadowValue;
+		//	continue;
+		//}
+
+		//lightDir /= dist;
+
+		//float angle = dot(-lightDir, _direction[i]) / length(_direction[i]);
+		//float lightCos = cos(_diversionAngle[i]);
+		//float diff = angle - lightCos;
+
+		//if (diff < 0) {
+		//	color.rgb += _lightingColor[i].rgb * shadowValue;
+		//	continue;
+		//}
+
+		//float diffuseValue = saturate(dot(normal, lightDir));
+		//float3 halfVector = normalize(lightDir + _cameraPosition - position);
+		//float specularValue = pow(saturate(dot(normal, halfVector)), _specularHardness[i]);
+
+		//color.rgb += (diffuseValue * _diffusePower[i] + specularValue * _specularPower[i]) /** (1 - pow(1 - diff / (1 - lightCos), _hardness[i]))*/
+		//	* _lightingColor[i].rgb * shadowValue;
+		color.rgb += shadowValue * _lightingColor[i].rgb;
+	}
+
+	return color;
+}
+
+float4 SpotlightShadowPS(in DefferedPixel input) : SV_Target
+{
+	return float4(SpotlightShadowValue(input), 0, 0, 1);
 }
 
 TECHNIQUE(GenerateShadowMap, RasterizeVS, ShadowToCamera);
+TECHNIQUE(SpotLightShadowMap, RasterizeVS, SpotlightShadowPS);
 
 TECHNIQUE(WriteDepthInstanced, WriteShadowVSInstanced, WriteShadow);
 TECHNIQUE(WriteDepth, WriteShadowVSStandart, WriteShadow);

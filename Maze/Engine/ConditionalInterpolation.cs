@@ -28,8 +28,13 @@ namespace Maze.Engine
 
         protected override void Begin()
         {
-            base.Begin();
-            Entered?.Invoke(this, EventArgs.Empty);
+            if (Condition(Object))
+            {
+                base.Begin();
+                Entered?.Invoke(this, EventArgs.Empty);
+
+                _passedCondition = true;
+            }
         }
 
         protected override bool Update(GameTime time)

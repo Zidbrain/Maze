@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Maze.Graphics
 {
     [StructLayout(LayoutKind.Sequential)]
-    public struct CommonVertex : IVertexType
+    public readonly struct CommonVertex : IVertexType
     {
         private static readonly VertexDeclaration s_vertexDeclaration = new(
             new[]
@@ -17,15 +17,15 @@ namespace Maze.Graphics
             }
         );
 
+        public readonly Vector3 Position;
+
+        public readonly Vector2 TextureCoordinate;
+
+        public readonly Vector3 Normal;
+
+        public readonly Vector3 Tangent;
+
         public VertexDeclaration VertexDeclaration => s_vertexDeclaration;
-
-        public Vector3 Position;
-
-        public Vector2 TextureCoordinate;
-
-        public Vector3 Normal;
-
-        public Vector3 Tangent;
 
         public CommonVertex(Vector3 position, Vector2 textureCoordinate, Vector3 normal, Vector3 tangent) =>
             (Position, TextureCoordinate, Normal, Tangent) = (position, textureCoordinate, normal, tangent);

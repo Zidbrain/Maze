@@ -16,16 +16,18 @@ namespace Maze.Graphics
 
         public virtual bool ShadowsEnabled { get; set; } = true;
 
-        /// <summary>
-        /// Get shadow texture for input objects and view matrices of this light
-        /// </summary>
-        /// <param name="objects">Objects, which shadow needs to be drawn</param>
-        /// <param name="lightViewMatrices">View matrices which were used to draw the shadow</param>
-        /// <returns></returns>
-        public abstract Texture2D GetShadows(EnumerableLevelObjects objects, out Matrix[] lightViewMatrices);
+        public abstract Shaders.ShadowMapShaderState GetShadows(EnumerableLevelObjects objects);
 
         public abstract void Dispose();
 
         public abstract void LoadStaticState(EnumerableLevelObjects staticObjects);
+
+        protected static readonly RasterizerState shadowRasterizer = new()
+        {
+            DepthBias = 0.002f,
+            SlopeScaleDepthBias = 0.007f,
+            MultiSampleAntiAlias = false,
+            CullMode = CullMode.None
+        };
     }
 }

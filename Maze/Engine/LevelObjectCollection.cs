@@ -31,10 +31,10 @@ namespace Maze.Engine
         }
 
         public EnumerableLevelObjects Intersect(BoundingFrustum frustrum) =>
-            Where(t => t.Intersects(frustrum));
+            Where(t => !t.EnableOcclusionCulling || t.Boundary.IntersectsOrInside(frustrum));
 
         public EnumerableLevelObjects Intersect(BoundingSphere sphere) =>
-            Where(t => t.Intersects(sphere));
+            Where(t => t.Boundary.IntersectsOrInside(sphere));
 
         public EnumerableLevelObjects Static(bool isStatic = true) =>
             Where(t => t.IsStatic == isStatic);
@@ -50,14 +50,17 @@ namespace Maze.Engine
                     levelObject.Draw();
         }
 
-        public void SetShaderState(Func<IShaderState> stateGenerator)
+        public void SetShaderState(Func<TransformShaderState> stateGenerator)
         {
             foreach (var @object in this)
                 @object.ShaderState = stateGenerator?.Invoke();
         }
 
-        public void SetShaderState(IShaderState state)
+        public void SetShaderState(TransformShaderState state)
         {
+            if (state is null)
+                state = new StandartShaderState();
+
             foreach (var @object in this)
                 @object.ShaderState = state;
         }

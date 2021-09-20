@@ -7,20 +7,35 @@ namespace Maze.Graphics.Shaders
     {
         public Matrix WorldViewProjection { get; set; } = Matrix.Identity;
 
+        public const int MaxBones = 50;
+
+        public Matrix[] Bones { get; set; }
+
         public Matrix Transform { get; set; } = Matrix.Identity;
 
         public virtual void Apply(EffectParameterCollection parameters)
         {
             parameters["_matrix"].SetValue(WorldViewProjection);
+
+            if (Bones != null)
+                parameters["_bones"].SetValue(Bones);
             parameters["_transform"].SetValue(Transform);
         }
 
-        public abstract EffectTechnique GetTechnique(EffectTechniqueCollection techniques);
+        public EffectTechnique GetTechnique(EffectTechniqueCollection techniques)
+        {
+            var technique = GetTechniqueForShadingModel(techniques);
+            if (Bones != null)
+                return techniques[$"Model{technique.Name}"];
+            return technique;
+        }
+
+        protected abstract EffectTechnique GetTechniqueForShadingModel(EffectTechniqueCollection techniques);
     }
 
     public class StandartShaderState : TransformShaderState
     {
-        public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
+        protected override EffectTechnique GetTechniqueForShadingModel(EffectTechniqueCollection techniques) =>
             techniques["Standart"];
 
         public Color Color { get; set; } = Color.White;

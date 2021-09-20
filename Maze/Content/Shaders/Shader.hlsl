@@ -7,5 +7,6 @@
 #include "Lighting.hlsl"
 #include "SSAO.hlsl"
 #include "Blur.hlsl"
+#include "Model.hlsl"
 
 #endif

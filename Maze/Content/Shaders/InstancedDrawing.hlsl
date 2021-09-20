@@ -23,7 +23,7 @@ Pixel InstancedVS(in InstancedVertexInput input)
     output.WorldPosition = mul(input.Position, _matrices[input.Instance]).xyz;
     output.TextureCoordinate = input.TextureCoordinate;
     output.Position = mul(float4(output.WorldPosition, 1), _matrix);
-    output.TBN = ConstructTBN(output.WorldPosition, input.Normal, input.Tangent, (float3x4) _matrices[input.Instance]);
+    output.TBN = ConstructTBN(output.WorldPosition, input.Normal, input.Tangent, (float3x3) _matrices[input.Instance]);
     
     return output;
 }

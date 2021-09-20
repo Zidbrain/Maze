@@ -144,11 +144,10 @@ namespace Maze.Graphics
 
     public class LightEngine : IDrawable, IDisposable
     {
-        private readonly GammaShaderState _gamma;
-        private readonly ShadowMapShaderState _shadowState;
+        private readonly MaskShaderState _ssaoMask;
         private readonly RenderTarget2D _shadowMaps;
 
-        private readonly RenderTarget2D _ambientMap;
+        private readonly RenderTarget2D[] _ambientMap;
         private readonly SSAOShaderState _ambientOcclusion;
         private readonly BlurShaderState _blur;
 
@@ -162,8 +161,8 @@ namespace Maze.Graphics
 
         public Color AmbientColor
         {
-            get => _gamma.MaskColor;
-            set => _gamma.MaskColor = value;
+            get => _ssaoMask.MaskColor;
+            set => _ssaoMask.MaskColor = value;
         }
 
         public void AddLightType<TLight>(ILightShaderState<TLight> shaderState) where TLight : Light
@@ -179,16 +178,18 @@ namespace Maze.Graphics
         {
             _shadowMaps = new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 0, RenderTargetUsage.PreserveContents, false, LightBatchCount);
 
-            _ambientMap = new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 2, RenderTargetUsage.PreserveContents);
+            _ambientMap = new RenderTarget2D[2]
+            {
+                new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, true, SurfaceFormat.Single, DepthFormat.None, 0, RenderTargetUsage.DiscardContents),
+                new RenderTarget2D(Instance.GraphicsDevice, 1920, 1080, false, SurfaceFormat.Single, DepthFormat.None, 0, RenderTargetUsage.DiscardContents)
+            };
             _ambientOcclusion = new SSAOShaderState(Instance.RenderTargets.Depth, Instance.RenderTargets.Normal, Instance.RenderTargets.Position);
-            _blur = new BlurShaderState(_ambientMap);
+            _blur = new BlurShaderState(_ambientMap[0]);
 
-            _gamma = new GammaShaderState(Instance.RenderTargets.Color) { Mask = _ambientMap };
+            _ssaoMask = new (Instance.RenderTargets.Color) { Mask = _ambientMap[1] };
 
             AddLightType(new PointLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
             AddLightType(new SpotLightShaderState(Instance.RenderTargets.United, Instance.RenderTargets.Normal, Instance.RenderTargets.Position));
-
-            _shadowState = new ShadowMapShaderState(Instance.RenderTargets.Position);
 
             _box = new Tile(level, 0.1f, Direction.None)
             {
@@ -199,13 +200,45 @@ namespace Maze.Graphics
             Level = level;
         }
 
-        private void DrawLightSpecific(List<Light> lights, ILightShaderState<Light> shaderState, Texture2D[] depthMaps, Matrix[][] lightViewMatrices, int start)
+        private static readonly SamplerState s_shadowSampler = new()
         {
-            shaderState.CameraPosition = Instance.Level.CameraPosition;
+            Filter = TextureFilter.Linear,
+            ComparisonFunction = CompareFunction.Less,
+            FilterMode = TextureFilterMode.Comparison,
+            AddressU = TextureAddressMode.Border,
+            AddressV = TextureAddressMode.Border,
+            AddressW = TextureAddressMode.Border,
+            BorderColor = Color.Red,
+            MaxAnisotropy = 4
+        };
+
+        private static readonly BlendState s_blendWithbaked = new()
+        {
+            ColorBlendFunction = BlendFunction.Min,
+            ColorSourceBlend = Blend.One,
+            ColorDestinationBlend = Blend.One,
+            ColorWriteChannels = ColorWriteChannels.Red
+        };
+
+        private static readonly BlendState s_blendLight = new()
+        {
+            ColorBlendFunction = BlendFunction.Add,
+            ColorSourceBlend = Blend.DestinationColor,
+            ColorDestinationBlend = Blend.One
+        };
+
+        private void DrawLightSpecific(List<Light> lights, ILightShaderState<Light> shaderState, ShadowMapShaderState[] shadowMapShaderStates, int offset)
+        {
+            shaderState.CameraPosition = Instance.Level.Player.Position;
+
+            Instance.GraphicsDevice.SamplerStates[1] = s_shadowSampler;
 
             for (var i = 0; i <= lights.Count / LightBatchCount; i++)
             {
                 shaderState.LightingData.Fill(null);
+
+                Instance.GraphicsDevice.BlendState = BlendState.Opaque;
+
                 for (var j = i * LightBatchCount; j < (i + 1) * LightBatchCount && j < lights.Count; j++)
                 {
                     var data = lights[j];
@@ -213,41 +246,41 @@ namespace Maze.Graphics
 
                     if (lights[j].ShadowsEnabled)
                     {
-                        _shadowState.LightPosition = data.Position;
-                        _shadowState.DepthMap = depthMaps[start + j];
-                        _shadowState.LightViewMatrices = lightViewMatrices[start + j];
-
                         Instance.GraphicsDevice.SetRenderTarget(_shadowMaps, j - i * LightBatchCount);
 
-                        Instance.DrawQuad(_shadowState);
+                        Instance.DrawQuad(shadowMapShaderStates[offset + j], false);
                     }
                 }
 
-                Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
-                Instance.DrawQuad(shaderState);
+                if (lights.Count != 0 || i == 0 && offset == 0)
+                {
+                    Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
+
+                    if (i == 0 && offset == 0)
+                    {
+                        Instance.DrawQuad(_ssaoMask, false);
+                    }
+
+                    Instance.GraphicsDevice.BlendState = s_blendLight;
+                    Instance.DrawQuad(shaderState, false);
+                }
             }
         }
 
         public void Draw()
         {
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
-            Instance.GraphicsDevice.SetRenderTarget(_ambientMap);
+            Instance.GraphicsDevice.SetRenderTarget(_ambientMap[0]);
 
-            Instance.DrawQuad(_ambientOcclusion);
-            Instance.Present();
+            Instance.DrawQuad(_ambientOcclusion, false);
 
-            _blur.IsVertical = false;
-            Instance.DrawQuad(_blur);
-            Instance.Present();
-            _blur.IsVertical = true;
-            Instance.DrawQuad(_blur);
+            Instance.GraphicsDevice.SetRenderTarget(_ambientMap[1]);
+            Instance.DrawQuad(_blur, false);
 
-            Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
-            Instance.GraphicsDevice.Clear(Color.Transparent);
-            Instance.DrawQuad(_gamma);
+            //Instance.GraphicsDevice.SetRenderTarget(Instance.RenderTargets.United);
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.Default;
 
-            _box.Position = Instance.Level.CameraPosition;
+            _box.Position = Instance.Level.Player.Position;
             Instance.Level.Objects.Add(_box);
 
             var removed = new Stack<Light>();
@@ -259,29 +292,31 @@ namespace Maze.Graphics
             foreach (var light in removed)
                 Lights.Remove(light);
 
-            var depthMaps = new Texture2D[Lights.Count];
-            var matrices = new Matrix[Lights.Count][];
+            var shaderstates = new ShadowMapShaderState[Lights.Count];
 
             var i = 0;
             var dynamicObjects = Level.Objects.Static(false).Evaluate();
+
+            var prev = Instance.GraphicsDevice.BlendState;
+            Instance.GraphicsDevice.BlendState = s_blendWithbaked;
+
             foreach (var light in Lights)
             {
                 if (light.ShadowsEnabled)
                     if (light.IsStatic)
-                        depthMaps[i] = light.GetShadows(dynamicObjects, out matrices[i]);
+                        shaderstates[i] = light.GetShadows(dynamicObjects);
                     else
-                        depthMaps[i] = light.GetShadows(Level.Objects, out matrices[i]);
+                        shaderstates[i] = light.GetShadows(Level.Objects);
                 i++;
             }
 
             Instance.GraphicsDevice.DepthStencilState = DepthStencilState.None;
-
-            _shadowState.Position = Instance.RenderTargets.Position;
+            Instance.GraphicsDevice.BlendState = prev;
 
             i = 0;
             foreach (var (lights, shaderState) in Lights.GetAllTypesData())
             {
-                DrawLightSpecific(lights, shaderState, depthMaps, matrices, i);
+                DrawLightSpecific(lights, shaderState, shaderstates, i);
                 i += lights.Count;
             }
 

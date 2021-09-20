@@ -38,10 +38,13 @@ namespace Maze.Graphics
         {
             var gd = Maze.Instance.GraphicsDevice;
 
+            var completeMatrices = _matrices.ToArray();
+
+            if (completeMatrices.Length == 0)
+                return;
+
             gd.SetVertexBuffer(_vertexes);
             gd.Indices = _indices;
-
-            var completeMatrices = _matrices.ToArray();
 
             for (var j = 0; j < completeMatrices.Length; j += s_maxPolygones)
             {

@@ -1,0 +1,7 @@
+﻿In descending priority:
+
+- Support for animations
+- Cascading shadow maps
+
+
+- Make instanced drawing use vertex buffers instead of shader parameters (textures must be of the same size, so it'll be useless)

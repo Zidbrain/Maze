@@ -28,7 +28,7 @@ struct Pixel
     float4 Position : SV_Position;
     float2 TextureCoordinate : TEXCOORD0;
     float3 WorldPosition : TEXCOORD1;
-    nointerpolation float3x3 TBN : NORMAL0;
+    float3x3 TBN : NORMAL0;
 };
 
 struct DefferedPixel
@@ -55,7 +55,7 @@ tbuffer Textures : register(t1)
 
 PARAMETER(float3 _cameraPosition);
 
-SamplerState wrapSampler = sampler_state
+SamplerState wrapSampler : register(s0)
 {
     AddressU = WRAP;
     AddressV = WRAP;
@@ -74,7 +74,7 @@ SamplerState borderSampler = sampler_state
     AddressU = BORDER;
     AddressV = BORDER;
     AddressW = BORDER;
-    BorderColor = 0x000000;
+    BorderColor = 0xFFFFFF;
 };
 
 SamplerState anisotropicSampler = sampler_state
@@ -99,15 +99,17 @@ float3 GetNormal(in float2 texCoord)
 
 void OrientVector(inout float3 vec, in float3 onPosition, in float3 vectorPosition)
 {
-    vec = normalize(vec * dot(onPosition - vectorPosition, vec));
+    if (dot(onPosition - vectorPosition, vec) < 0)
+        vec = -vec;
 }
 
-float3x3 ConstructTBN(in float3 position, in float3 normal, in float3 tangent, in float3x4 transform)
+float3x3 ConstructTBN(in float3 position, in float3 normal, in float3 tangent, in float3x3 transform)
 {          
-    float3 N = mul(normal, transform).xyz;
-    OrientVector(N, _cameraPosition, position);
-    
+    float3 N = normalize(mul(normal, transform).xyz);
     float3 T = normalize(mul(tangent, transform).xyz);
+
+    OrientVector(N, _cameraPosition, position);
+
     float3 B = cross(N, T);
     
     return float3x3(T, B, N);

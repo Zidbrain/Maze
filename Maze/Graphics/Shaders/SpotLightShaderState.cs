@@ -18,7 +18,7 @@ namespace Maze.Graphics.Shaders
 
             var angles = new float[count];
             var directions = new Vector3[count];
-            var matrices = new Matrix[count];
+           // var matrices = new Matrix[count];
 
             for (int i = 0; i < count; i++)
             {
@@ -34,7 +34,7 @@ namespace Maze.Graphics.Shaders
                 data.Direction.Normalize();
                 directions[i] = data.Direction;
 
-                matrices[i] = Matrix.Invert(Extensions.GetAlignmentMatrix(Vector3.Forward, data.Direction));
+                //matrices[i] = VectorMath.GetAlignmentMatrix(data.Direction, Vector3.Forward) * Matrix.CreateTranslation(-data.Position);
             }
 
             parameters["_lightingColor"].SetValue(colors);
@@ -45,7 +45,7 @@ namespace Maze.Graphics.Shaders
 
             parameters["_diversionAngle"].SetValue(angles);
             parameters["_direction"].SetValue(directions);
-            parameters["_directionMatrix"].SetValue(matrices);
+            //parameters["_directionMatrix"].SetValue(matrices);
         }
 
         public override EffectTechnique GetTechnique(EffectTechniqueCollection techniques) =>
